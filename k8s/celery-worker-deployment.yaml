@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: sopas
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: sopas-backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "app.tasks.celery_app.celery_app", "worker", "-l", "info"]
+          envFrom:
+            - configMapRef:
+                name: sopas-config
+          env:
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sopas-secrets
+                  key: NEO4J_PASSWORD
