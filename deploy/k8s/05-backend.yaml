@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: raw-docs
+  namespace: sopa
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-api
+  namespace: sopa
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-api
+  template:
+    metadata:
+      labels:
+        app: backend-api
+    spec:
+      containers:
+        - name: backend-api
+          image: sopa-backend:0.1.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: sopa-config
+            - secretRef:
+                name: sopa-secret
+          volumeMounts:
+            - name: raw-docs
+              mountPath: /app/data/raw-docs
+      volumes:
+        - name: raw-docs
+          persistentVolumeClaim:
+            claimName: raw-docs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-api
+  namespace: sopa
+spec:
+  selector:
+    app: backend-api
+  ports:
+    - port: 8000
+      targetPort: 8000

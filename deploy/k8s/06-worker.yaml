@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: sopa
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: sopa-backend:0.1.5
+          imagePullPolicy: IfNotPresent
+          command: ["celery"]
+          args: ["-A", "app.workers.celery_app.celery_app", "worker", "--loglevel=INFO"]
+          envFrom:
+            - configMapRef:
+                name: sopa-config
+            - secretRef:
+                name: sopa-secret
+          volumeMounts:
+            - name: raw-docs
+              mountPath: /app/data/raw-docs
+      volumes:
+        - name: raw-docs
+          persistentVolumeClaim:
+            claimName: raw-docs

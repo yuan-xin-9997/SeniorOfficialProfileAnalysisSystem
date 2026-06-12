@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sopa-config
+  namespace: sopa
+data:
+  APP_ENV: "prod"
+  DEFAULT_CRAWL_CRON: "0 3 * * 1"
+  RAW_DOCS_DIR: "/app/data/raw-docs"
+  LLM_PROVIDER: "disabled"
+
