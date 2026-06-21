@@ -221,6 +221,10 @@ data/
 *.db-shm
 *.db-wal
 
+# Application logs, including daily rotated files
+logs/
+**/logs/
+
 # Deployment generated files
 *.bak
 

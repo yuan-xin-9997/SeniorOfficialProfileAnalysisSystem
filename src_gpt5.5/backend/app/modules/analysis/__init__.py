@@ -1,0 +1,2 @@
+"""Analysis task module."""
+

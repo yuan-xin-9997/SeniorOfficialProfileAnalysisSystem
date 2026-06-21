@@ -1,0 +1,169 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SOURCE_DIR', defaultValue: 'src_gpt5.5', description: 'Source directory relative to the Jenkins workspace')
+        string(name: 'DEPLOY_DIR', defaultValue: '/opt/SeniorOfficialProfileAnalysisSystem/src_gpt5.5', description: 'Absolute deployment directory')
+        string(name: 'APP_HOST', defaultValue: '0.0.0.0', description: 'HTTP listen address')
+        string(name: 'APP_PORT', defaultValue: '33380', description: 'HTTP listen port')
+        string(name: 'DATA_DIR', defaultValue: './data', description: 'Data directory, absolute or relative to DEPLOY_DIR')
+        string(name: 'LOG_DIR', defaultValue: './logs', description: 'Log directory, absolute or relative to DEPLOY_DIR')
+        string(name: 'FRONTEND_DIST_DIR', defaultValue: './frontend/dist', description: 'Vue build directory, absolute or relative to DEPLOY_DIR')
+        string(name: 'DATABASE_URL', defaultValue: 'sqlite:///./data/sopa.db', description: 'SQLAlchemy database URL')
+        string(name: 'LOG_RETENTION_DAYS', defaultValue: '30', description: 'Number of daily log files to retain')
+    }
+
+    triggers {
+        pollSCM('H/3 * * * *')
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        APP_SOURCE = "${params.SOURCE_DIR}"
+        APP_DIR = "${params.DEPLOY_DIR}"
+        APP_HOST = "${params.APP_HOST}"
+        APP_PORT = "${params.APP_PORT}"
+        DATA_DIR = "${params.DATA_DIR}"
+        LOG_DIR = "${params.LOG_DIR}"
+        FRONTEND_DIST_DIR = "${params.FRONTEND_DIST_DIR}"
+        DATABASE_URL = "${params.DATABASE_URL}"
+        LOG_RETENTION_DAYS = "${params.LOG_RETENTION_DAYS}"
+    }
+
+    stages {
+        stage('Checkout from GitHub') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Stop Service') {
+            steps {
+                sh '''
+                    set -eu
+                    if [ -f "$APP_DIR/stop.sh" ]; then
+                        chmod +x "$APP_DIR/stop.sh"
+                        APP_DIR="$APP_DIR" DATA_DIR="$DATA_DIR" "$APP_DIR/stop.sh"
+                    else
+                        echo "No deployed stop.sh found; treating this as the first deployment."
+                    fi
+                '''
+            }
+        }
+
+        stage('Update Deployment') {
+            steps {
+                sh '''
+                    set -eu
+                    SOURCE_PATH="$WORKSPACE/$APP_SOURCE"
+                    test -d "$SOURCE_PATH"
+                    mkdir -p "$APP_DIR"
+
+                    EXCLUDE_FILE="$(mktemp)"
+                    trap 'rm -f "$EXCLUDE_FILE"' EXIT
+                    printf '%s\n' '.env' '.venv/' 'frontend/node_modules/' > "$EXCLUDE_FILE"
+                    for runtime_dir in "$DATA_DIR" "$LOG_DIR"; do
+                        case "$runtime_dir" in
+                            /*) ;;
+                            *) printf '%s/\n' "${runtime_dir#./}" >> "$EXCLUDE_FILE" ;;
+                        esac
+                    done
+                    rsync -a --delete --exclude-from="$EXCLUDE_FILE" "$SOURCE_PATH/" "$APP_DIR/"
+
+                    case "$DATA_DIR" in /*) DATA_PATH="$DATA_DIR" ;; *) DATA_PATH="$APP_DIR/${DATA_DIR#./}" ;; esac
+                    case "$LOG_DIR" in /*) LOG_PATH="$LOG_DIR" ;; *) LOG_PATH="$APP_DIR/${LOG_DIR#./}" ;; esac
+                    mkdir -p "$DATA_PATH" "$LOG_PATH"
+
+                    if [ ! -f "$APP_DIR/.env" ]; then
+                        cp "$APP_DIR/.env.example" "$APP_DIR/.env"
+                        JWT_SECRET="$(openssl rand -hex 32)"
+                        ADMIN_PASSWORD="$(openssl rand -base64 24 | tr -dc A-Za-z0-9 | head -c 16)"
+                        sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" "$APP_DIR/.env"
+                        sed -i "s|^INITIAL_ADMIN_PASSWORD=.*|INITIAL_ADMIN_PASSWORD=$ADMIN_PASSWORD|" "$APP_DIR/.env"
+                        chmod 600 "$APP_DIR/.env"
+                        printf '%s' "$ADMIN_PASSWORD" > "$DATA_PATH/initial-admin-password.txt"
+                        chmod 600 "$DATA_PATH/initial-admin-password.txt"
+                    fi
+
+                    set_env_value() {
+                        key="$1"
+                        value="$2"
+                        temp_file="$(mktemp)"
+                        awk -v key="$key" -v value="$value" '
+                            BEGIN { found = 0 }
+                            index($0, key "=") == 1 { print key "=" value; found = 1; next }
+                            { print }
+                            END { if (!found) print key "=" value }
+                        ' "$APP_DIR/.env" > "$temp_file"
+                        mv "$temp_file" "$APP_DIR/.env"
+                    }
+                    set_env_value APP_HOST "$APP_HOST"
+                    set_env_value APP_PORT "$APP_PORT"
+                    set_env_value DATA_DIR "$DATA_DIR"
+                    set_env_value LOG_DIR "$LOG_DIR"
+                    set_env_value FRONTEND_DIST_DIR "$FRONTEND_DIST_DIR"
+                    set_env_value DATABASE_URL "$DATABASE_URL"
+                    set_env_value LOG_RETENTION_DAYS "$LOG_RETENTION_DAYS"
+                    chmod 600 "$APP_DIR/.env"
+                '''
+            }
+        }
+
+        stage('Install and Build') {
+            steps {
+                sh '''
+                    set -eu
+                    cd "$APP_DIR"
+                    python3 -m venv .venv
+                    .venv/bin/pip install --disable-pip-version-check -e backend
+                    cd frontend
+                    npm ci
+                    npm run build
+                '''
+            }
+        }
+
+        stage('Start Service') {
+            steps {
+                sh '''
+                    set -eu
+                    chmod +x "$APP_DIR/start.sh" "$APP_DIR/stop.sh" "$APP_DIR/status.sh"
+                    JENKINS_NODE_COOKIE=dontKillMe \
+                    APP_DIR="$APP_DIR" \
+                    APP_HOST="$APP_HOST" \
+                    APP_PORT="$APP_PORT" \
+                    DATA_DIR="$DATA_DIR" \
+                    LOG_DIR="$LOG_DIR" \
+                    FRONTEND_DIST_DIR="$FRONTEND_DIST_DIR" \
+                    DATABASE_URL="$DATABASE_URL" \
+                    LOG_RETENTION_DAYS="$LOG_RETENTION_DAYS" \
+                    "$APP_DIR/start.sh"
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh '''
+                    set -eu
+                    curl --fail --silent --show-error "http://127.0.0.1:$APP_PORT/api/health"
+                    curl --fail --silent --show-error "http://127.0.0.1:$APP_PORT/" >/dev/null
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'SeniorOfficialProfileAnalysisSystem deployment completed successfully.'
+        }
+        failure {
+            echo 'Deployment failed. Check the configured LOG_DIR and Jenkins console log.'
+        }
+    }
+}
