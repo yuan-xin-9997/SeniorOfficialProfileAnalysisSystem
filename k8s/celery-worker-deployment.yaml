@@ -27,3 +27,8 @@ spec:
                 secretKeyRef:
                   name: sopas-secrets
                   key: NEO4J_PASSWORD
+            - name: WEB_FETCH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopas-secrets
+                  key: WEB_FETCH_API_KEY

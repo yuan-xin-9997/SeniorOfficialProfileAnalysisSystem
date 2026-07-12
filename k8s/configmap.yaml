@@ -9,3 +9,5 @@ data:
   NEO4J_USER: neo4j
   REDIS_URL: redis://redis:6379/0
   CORS_ORIGINS: http://192.168.0.111,http://localhost
+  WEB_FETCH_BASE_URL: http://192.168.0.111:33333
+  WEB_FETCH_MODE: auto

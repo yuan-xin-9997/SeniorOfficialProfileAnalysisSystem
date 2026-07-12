@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str = "sopas123456"
     REDIS_URL: str = "redis://redis:6379/0"
 
+    # Central WebFetch service. Keep credentials outside source control and inject
+    # both values through the runtime environment.
+    WEB_FETCH_BASE_URL: str = ""
+    WEB_FETCH_API_KEY: str = ""
+    WEB_FETCH_MODE: str = "auto"
+    WEB_FETCH_TIMEOUT_SECONDS: float = 60.0
+
     JWT_SECRET: str = "change-me-in-production-use-long-random-string"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_HOURS: int = 24

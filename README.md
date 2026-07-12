@@ -34,6 +34,26 @@ npm install
 npm run dev
 ```
 
+## 网页抓取服务配置
+
+系统不直接访问目标网页，抓取任务统一调用集中 WebFetch 服务的
+`POST /v1/fetch` 接口。运行后端和 Celery Worker 前配置：
+
+```bash
+export WEB_FETCH_BASE_URL=http://webfetch-host:33333
+export WEB_FETCH_API_KEY=replace-with-api-key
+export WEB_FETCH_MODE=auto
+```
+
+`WEB_FETCH_API_KEY` 是服务端凭据，只能通过环境变量或密钥管理系统注入，
+不得写入代码、日志或提交到 Git。可选配置 `WEB_FETCH_TIMEOUT_SECONDS`（默认
+60 秒）。WebFetch 不可用或配置缺失时，抓取任务会记录失败，不会绕过服务直接
+请求目标网站。
+
+当前部署地址为 `http://192.168.0.111:33333`，健康检查地址为
+`http://192.168.0.111:33333/health/ready`。API Key 需在部署环境中设置；仓库
+中的 Kubernetes Secret 仅保留待替换占位值。
+
 ## 部署到 Linux 服务器
 
 服务器信息见 [env.md](./env.md)。在项目根目录执行：

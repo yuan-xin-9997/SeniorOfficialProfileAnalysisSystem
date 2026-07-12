@@ -3,13 +3,17 @@
 from datetime import date
 
 from app.schemas.official import CareerEntryIn, OfficialCreate, PoliticalCareerIn
+from app.services.scraper.web_fetch_client import WebFetchClient
 
 
 class PeopleSpider:
     source_id = "people"
 
+    def __init__(self, fetch_client: WebFetchClient | None = None) -> None:
+        self.fetch_client = fetch_client or WebFetchClient()
+
     async def fetch(self, url: str) -> str:
-        return ""
+        return await self.fetch_client.fetch(url)
 
     def get_official_urls(self, name: str) -> list[str]:
         return [f"https://www.people.com.cn/search?keyword={name}"]

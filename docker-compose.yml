@@ -51,6 +51,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: dev-secret-change-in-production
       CORS_ORIGINS: http://localhost:5173,http://localhost,http://192.168.0.111
+      WEB_FETCH_BASE_URL: ${WEB_FETCH_BASE_URL:-}
+      WEB_FETCH_API_KEY: ${WEB_FETCH_API_KEY:-}
+      WEB_FETCH_MODE: ${WEB_FETCH_MODE:-auto}
     ports:
       - "8000:8000"
     depends_on:
@@ -70,6 +73,9 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: sopas123456
       REDIS_URL: redis://redis:6379/0
+      WEB_FETCH_BASE_URL: ${WEB_FETCH_BASE_URL:-}
+      WEB_FETCH_API_KEY: ${WEB_FETCH_API_KEY:-}
+      WEB_FETCH_MODE: ${WEB_FETCH_MODE:-auto}
     depends_on:
       - backend
       - redis

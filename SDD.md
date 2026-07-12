@@ -252,6 +252,10 @@ Admin/API          Celery Worker       Spider           Backend Storage
 
 #### 3.1.5 反爬与容错
 
+网页请求统一由集中 WebFetch 服务执行，业务系统通过 Bearer API Key 调用
+`POST /v1/fetch`。服务地址、API Key、抓取模式及超时均由环境变量注入；业务
+系统不保留直连目标站点的降级路径，以确保缓存、限速、重试与审计策略集中生效。
+
 | 策略 | 实现 |
 |------|------|
 | 请求限速 | Scrapy `DOWNLOAD_DELAY` + 令牌桶，默认 2 req/s/域名 |
