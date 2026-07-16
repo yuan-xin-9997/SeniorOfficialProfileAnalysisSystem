@@ -143,39 +143,15 @@
 
 ```
 SOPAS/
-├── backend/
-│   ├── app/
-│   │   ├── api/v1/              # REST 路由（auth, officials, scraper, analysis, export）
-│   │   ├── core/                # 配置、安全、数据库连接池
-│   │   ├── models/              # SQLAlchemy ORM 模型
-│   │   ├── schemas/             # Pydantic 请求/响应模式
-│   │   ├── services/            # 业务逻辑
-│   │   │   ├── scraper/         # 抓取编排、解析、增量比对
-│   │   │   ├── analysis/        # 关系引擎、聚类、相似度
-│   │   │   └── storage/         # 双库同步、版本管理、导入导出
-│   │   ├── repositories/        # 数据访问层（PG + Neo4j）
-│   │   ├── tasks/               # Celery 任务定义
-│   │   └── utils/               # 通用工具
-│   ├── tests/
-│   ├── alembic/
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/
-│   ├── src/
-│   │   ├── views/               # 页面：Dashboard, OfficialDetail, NetworkGraph 等
-│   │   ├── components/          # 可复用组件：Timeline, ForceGraph, ChinaMap
-│   │   ├── stores/              # Pinia 状态
-│   │   ├── api/                 # Axios 封装
-│   │   └── router/              # 路由与权限守卫
-│   ├── package.json
-│   └── Dockerfile
-├── scraper/
-│   ├── spiders/                 # 各数据源 Spider（people, xinhua, gov）
-│   ├── parsers/                 # HTML → 结构化 DTO
-│   ├── pipelines/               # 清洗、校验、推送 Backend API
-│   └── middlewares/             # 限速、UA 轮换、代理
-├── k8s/                         # K8S 清单
-├── docker-compose.yml
+├── src_gpt5.6/                  # 当前代码版本目录
+│   ├── backend/                 # FastAPI 后端
+│   ├── frontend/                # Vue 3 前端
+│   ├── scraper/                 # 爬虫扩展
+│   ├── k8s/                     # K8S 清单
+│   ├── scripts/                 # 部署脚本
+│   └── docker-compose.yml       # Docker Compose 配置
+├── SRS.md                       # 需求规格说明书
+├── SDD.md                       # 系统设计说明书
 └── docs/
 ```
 

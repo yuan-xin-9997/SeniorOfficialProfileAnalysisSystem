@@ -644,55 +644,15 @@ GET /api/analysis/similarity?official_a={id}&official_b={id}
 
 ```
 SOPAS/
-├── backend/                    # 后端服务
-│   ├── app/
-│   │   ├── api/               # API 路由
-│   │   │   ├── v1/
-│   │   │   │   ├── auth.py
-│   │   │   │   ├── officials.py
-│   │   │   │   ├── scraper.py
-│   │   │   │   ├── analysis.py
-│   │   │   │   └── export.py
-│   │   ├── core/              # 核心配置
-│   │   │   ├── config.py
-│   │   │   ├── security.py
-│   │   │   └── database.py
-│   │   ├── models/            # 数据模型
-│   │   ├── schemas/           # Pydantic 模式
-│   │   ├── services/          # 业务逻辑
-│   │   │   ├── scraper/       # 爬虫服务
-│   │   │   ├── analysis/      # 分析服务
-│   │   │   └── storage/       # 存储服务
-│   │   ├── tasks/             # Celery 异步任务
-│   │   └── utils/             # 工具函数
-│   ├── tests/                 # 测试
-│   ├── alembic/               # 数据库迁移
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/                   # 前端应用
-│   ├── src/
-│   │   ├── views/             # 页面组件
-│   │   ├── components/        # 通用组件
-│   │   ├── stores/            # 状态管理
-│   │   ├── api/               # API 调用
-│   │   ├── utils/             # 工具函数
-│   │   └── assets/            # 静态资源
-│   ├── package.json
-│   └── Dockerfile
-├── scraper/                    # 爬虫服务（独立部署）
-│   ├── spiders/               # 各数据源爬虫
-│   ├── parsers/               # 数据解析器
-│   ├── pipelines/             # 数据处理管道
-│   └── Dockerfile
-├── k8s/                        # K8S 部署配置
-│   ├── backend-deployment.yaml
-│   ├── frontend-deployment.yaml
-│   ├── neo4j-statefulset.yaml
-│   ├── postgres-statefulset.yaml
-│   ├── redis-deployment.yaml
-│   └── ingress.yaml
-├── docker-compose.yml          # 本地开发环境
-├── docker-compose.prod.yml     # 生产环境
+├── src_gpt5.6/                 # 当前代码版本目录
+│   ├── backend/                # 后端服务
+│   ├── frontend/               # 前端应用
+│   ├── scraper/                # 爬虫服务（独立部署）
+│   ├── k8s/                    # K8S 部署配置
+│   ├── scripts/                # 部署脚本
+│   └── docker-compose.yml      # 本地开发环境
+├── SRS.md                      # 软件需求规格说明书
+├── SDD.md                      # 系统设计说明书
 └── docs/                       # 项目文档
 ```
 

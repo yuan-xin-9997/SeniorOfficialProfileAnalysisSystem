@@ -12,6 +12,7 @@
 
 ```bash
 # 启动全部服务
+cd src_gpt5.6
 docker compose up -d --build
 
 # 访问
@@ -24,12 +25,12 @@ docker compose up -d --build
 
 ```bash
 # 后端
-cd backend
+cd src_gpt5.6/backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 
 # 前端
-cd frontend
+cd src_gpt5.6/frontend
 npm install
 npm run dev
 ```
@@ -56,9 +57,11 @@ export WEB_FETCH_MODE=auto
 
 ## 部署到 Linux 服务器
 
-服务器信息见 [env.md](./env.md)。在项目根目录执行：
+服务器信息见 [env.md](./env.md)。进入 `src_gpt5.6` 后执行：
 
 ```bash
+cd src_gpt5.6
+
 # Docker Compose 部署（推荐首次使用）
 bash scripts/deploy.sh compose
 
@@ -71,13 +74,15 @@ bash scripts/deploy.sh k8s
 ## 项目结构
 
 ```
-backend/     FastAPI 后端
-frontend/    Vue 3 前端
-scraper/     爬虫扩展（独立模块）
-k8s/         Kubernetes 清单
-scripts/     部署脚本
-SRS.md       需求规格说明书
-SDD.md       系统设计说明书
+src_gpt5.6/
+├── backend/            FastAPI 后端
+├── frontend/           Vue 3 前端
+├── scraper/            爬虫扩展（独立模块）
+├── k8s/                Kubernetes 清单
+├── scripts/            部署脚本
+└── docker-compose.yml  Docker Compose 配置
+SRS.md                  需求规格说明书
+SDD.md                  系统设计说明书
 ```
 
 ## 文档
