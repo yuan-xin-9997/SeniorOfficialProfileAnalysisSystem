@@ -1,91 +1,90 @@
-# SeniorOfficialProfileAnalysisSystem (SOPAS)
+# SeniorOfficialProfileAnalysisSystem
 
-基于 AI 的高级官员履历分析系统 — 采集、存储、分析与可视化展示高级官员公开履历及关系网络。
+高级官员履历分析系统（SOPAS）用于集中维护公开人物履历、任职轨迹、信息来源、分析任务与人物关系。当前重构版本位于 `src_gpt5.6`，采用 FastAPI + Vue 3 + SQLite，界面视觉和交互参考 InformationSmartAnalysisSystem。
 
-## 技术栈
+## 页面介绍
 
-- **后端**: FastAPI + SQLAlchemy + Neo4j + Celery + Redis
-- **前端**: Vue 3 + TypeScript + Element Plus + ECharts
-- **部署**: Docker Compose / Kubernetes (Minikube)
+- 概览：履历、在任官员、机构、任职经历和关系统计。
+- 履历档案：检索、新建、编辑、删除履历，查看人物概述与任职时间轴。
+- 关系图谱：维护人物关系并以网络视图展示。
+- 信息源管理：接入官方网站、本地文件夹和 FreshRSS，网页内容统一由 WebFetch 服务抓取。
+- 分析任务 / 分析结果：绑定信息源，执行全量或增量智能分析并查看结果。
+- 任务中心：查看后台任务状态与逐条日志。
+- 权限管理：管理员为普通用户分配页面权限。
+- 系统配置：查看脱敏后的运行配置与健康状态。
 
-## 快速开始（本地）
+## 快速开始
 
-```bash
-# 启动全部服务
+```powershell
 cd src_gpt5.6
-docker compose up -d --build
-
-# 访问
-# 前端: http://localhost
-# API 文档: http://localhost:8000/docs
-# 默认账号: admin / admin123
+./start.ps1
 ```
-
-## 开发模式
-
-```bash
-# 后端
-cd src_gpt5.6/backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-
-# 前端
-cd src_gpt5.6/frontend
-npm install
-npm run dev
-```
-
-## 网页抓取服务配置
-
-系统不直接访问目标网页，抓取任务统一调用集中 WebFetch 服务的
-`POST /v1/fetch` 接口。运行后端和 Celery Worker 前配置：
-
-```bash
-export WEB_FETCH_BASE_URL=http://webfetch-host:33333
-export WEB_FETCH_API_KEY=replace-with-api-key
-export WEB_FETCH_MODE=auto
-```
-
-`WEB_FETCH_API_KEY` 是服务端凭据，只能通过环境变量或密钥管理系统注入，
-不得写入代码、日志或提交到 Git。可选配置 `WEB_FETCH_TIMEOUT_SECONDS`（默认
-60 秒）。WebFetch 不可用或配置缺失时，抓取任务会记录失败，不会绕过服务直接
-请求目标网站。
-
-当前部署地址为 `http://192.168.0.111:33333`，健康检查地址为
-`http://192.168.0.111:33333/health/ready`。API Key 需在部署环境中设置；仓库
-中的 Kubernetes Secret 仅保留待替换占位值。
-
-## 部署到 Linux 服务器
-
-服务器信息见 [env.md](./env.md)。进入 `src_gpt5.6` 后执行：
 
 ```bash
 cd src_gpt5.6
-
-# Docker Compose 部署（推荐首次使用）
-bash scripts/deploy.sh compose
-
-# Minikube K8S 部署
-bash scripts/deploy.sh k8s
+chmod +x *.sh
+./start.sh
 ```
 
-部署完成后访问 `http://192.168.0.111`（Compose）或 `http://<minikube-ip>:30080`（K8S）。
+默认访问地址为 `http://127.0.0.1:33380`，首次部署账号为 `admin / admin123`。首次启动前可从 `AGENTS.md` 的模板创建 `data/password.txt`；启动脚本也会在文件不存在时创建它。
 
-## 项目结构
+## 配置
 
+主配置为 `src_gpt5.6/config/app.json`。所有路径可使用相对路径，敏感值和环境差异可通过 `SOPAS_*` 环境变量或 `config/env.local` 覆盖。主要变量包括：
+
+- `SOPAS_SERVER_HOST`、`SOPAS_SERVER_PORT`
+- `SOPAS_DB_PATH`、`SOPAS_PASSWORD_FILE`
+- `SOPAS_AUTH_SECRET_KEY`
+- `SOPAS_WEB_FETCH_BASE_URL`、`SOPAS_WEB_FETCH_API_KEY`
+- `SOPAS_LLM_BASE_URL`、`SOPAS_LLM_API_KEY`、`SOPAS_LLM_MODEL`
+
+配置文件可按本次需求随代码更新；Jenkins 增量部署会保留服务器 `data`、`logs` 和 `config/env.local`。
+
+## 开发与测试
+
+```bash
+cd src_gpt5.6
+python -m venv .venv
+.venv/bin/python -m pip install -r app/backend/requirements.txt
+.venv/bin/python -m pytest -q
+
+cd app/frontend
+npm ci
+npm run build
 ```
+
+## 部署与运维
+
+Jenkins 流水线文件为 `src_gpt5.6/JenkinsConfig/Jenkinsfile`，包含检出、后端测试、前端构建、停止、增量部署、启动与健康检查。Linux systemd 模板为 `src_gpt5.6/JenkinsConfig/sopas.service`。
+
+```bash
+./start.sh
+./status.sh
+./stop.sh
+curl http://127.0.0.1:33380/api/health
+```
+
+生产访问地址：`https://seniorprofile.yuan-xin.top`。
+
+## 目录结构
+
+```text
 src_gpt5.6/
-├── backend/            FastAPI 后端
-├── frontend/           Vue 3 前端
-├── scraper/            爬虫扩展（独立模块）
-├── k8s/                Kubernetes 清单
-├── scripts/            部署脚本
-└── docker-compose.yml  Docker Compose 配置
-SRS.md                  需求规格说明书
-SDD.md                  系统设计说明书
+├── app/backend/        FastAPI API、模型、服务
+├── app/frontend/       Vue 3 前端
+├── config/app.json     主配置
+├── data/               SQLite、密码文件和下载数据
+├── docs/               需求与设计文档
+├── JenkinsConfig/      Jenkinsfile、systemd 模板
+├── logs/               运行日志（不入库）
+├── tests/              单元与冒烟测试
+├── start.ps1|start.sh
+├── status.ps1|status.sh
+└── stop.ps1|stop.sh
 ```
 
-## 文档
+## 相关文档
 
-- [SRS.md](./SRS.md) — 软件需求规格说明书
-- [SDD.md](./SDD.md) — 系统设计说明书
+- [需求规格说明书](SRS.md)
+- [设计说明书](SDD.md)
+- [项目约束](AGENTS.md)

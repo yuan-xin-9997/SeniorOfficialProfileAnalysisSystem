@@ -1,0 +1,117 @@
+"""Local-folder information-source adapter."""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from pathlib import Path
+
+from bs4 import BeautifulSoup
+
+from .base import InfoItemData, InfoSourceAdapter, SourceStatus
+
+
+def extract_text(path: Path) -> str | None:
+    """Extract plain text from a file based on its extension."""
+    suffix = path.suffix.lower()
+    try:
+        if suffix in (".txt", ".md"):
+            return path.read_text(encoding="utf-8", errors="ignore")
+        if suffix in (".html", ".htm"):
+            html = path.read_text(encoding="utf-8", errors="ignore")
+            return BeautifulSoup(html, "html.parser").get_text("\n", strip=True)
+        if suffix == ".pdf":
+            return _extract_pdf(path)
+        if suffix == ".docx":
+            return _extract_docx(path)
+    except Exception:
+        return None
+    return None
+
+
+def _extract_pdf(path: Path) -> str:
+    import fitz  # PyMuPDF
+
+    parts: list[str] = []
+    with fitz.open(path) as doc:
+        for page in doc:
+            parts.append(page.get_text())
+    return "\n".join(parts).strip()
+
+
+def _extract_docx(path: Path) -> str:
+    import docx
+
+    doc = docx.Document(str(path))
+    return "\n".join(p.text for p in doc.paragraphs).strip()
+
+
+class LocalFolderAdapter(InfoSourceAdapter):
+    type = "local_folder"
+
+    def __init__(self, config: dict) -> None:
+        super().__init__(config)
+        self.folder_path: Path = Path(config["folder_path"])
+        self.patterns: list[str] = config.get("patterns") or [
+            "*.txt",
+            "*.md",
+            "*.pdf",
+            "*.docx",
+            "*.html",
+        ]
+        self.recursive: bool = bool(config.get("recursive", True))
+        self.max_items: int = int(config.get("max_items") or 100000)
+
+    @staticmethod
+    def required_config_keys() -> list[str]:
+        return ["folder_path"]
+
+    def _iter_files(self):
+        if not self.folder_path.exists():
+            return
+        glob = self.folder_path.rglob if self.recursive else self.folder_path.glob
+        seen: set[str] = set()
+        for pattern in self.patterns:
+            for f in glob(pattern):
+                if f.is_file():
+                    key = str(f)
+                    if key not in seen:
+                        seen.add(key)
+                        yield f
+
+    def check_status(self) -> SourceStatus:
+        if not self.folder_path.exists():
+            return SourceStatus(ok=False, message=f"文件夹不存在: {self.folder_path}")
+        count = sum(1 for _ in self._iter_files())
+        return SourceStatus(ok=True, message=f"共 {count} 个匹配文件", item_count=count)
+
+    def fetch_new_items(
+        self,
+        since: datetime | None = None,
+        known_ids: set[str] | None = None,
+    ) -> list[InfoItemData]:
+        known = known_ids or set()
+        # DB 读回的 last_sync_at 可能是 naive datetime，归一为 aware UTC 再与 mtime 比较。
+        if since and since.tzinfo is None:
+            since = since.replace(tzinfo=timezone.utc)
+        items: list[InfoItemData] = []
+        # 按路径排序，保证同步顺序确定、可解释（不依赖文件系统遍历顺序）。
+        for f in sorted(self._iter_files()):
+            ext_id = str(f.resolve())
+            mtime = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc)
+            # 增量 + 回补：已索引且未变更的文件跳过，不重读内容。
+            if since and ext_id in known and mtime <= since:
+                continue
+            content = extract_text(f)
+            if content is None:
+                continue
+            items.append(
+                InfoItemData(
+                    external_id=ext_id,
+                    title=f.name,
+                    url=str(f),
+                    content=content,
+                    published_at=mtime,
+                )
+            )
+            if len(items) >= self.max_items:
+                break
+        return items

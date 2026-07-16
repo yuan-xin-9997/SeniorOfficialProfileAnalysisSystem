@@ -1,0 +1,111 @@
+// 高级官员履历分析系统 Jenkins 部署流水线
+// 参照《生成Jenkinsfile的提示词.md》，采用与同服务器其它项目一致的模式：
+//   checkout scm（Jenkins 凭据拉取）-> 测试 -> 前端构建 -> 停服 -> rsync 更新 -> 启服 -> 健康检查
+//
+// Jenkins 任务配置：
+//   - 流水线类型：Pipeline script from SCM
+//   - 脚本路径：src_gpt5.6/JenkinsConfig/Jenkinsfile
+//   - 远程仓库：SSH 形式 git@github.com:yuan-xin-9997/SeniorOfficialProfileAnalysisSystem.git
+//   - 凭据：truthanalysis-github-ssh（已配置）
+//   - 触发器：每 30 分钟轮询 GitHub 提交（H/30 * * * *）
+//
+// 部署路径 DEPLOY_DIR=/opt/SeniorOfficialProfileAnalysisSystem（首次部署前已由运维预创建并 chown 给 jenkins）。
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
+    }
+
+    triggers {
+        pollSCM('H/30 * * * *')
+    }
+
+    environment {
+        APP_NAME = 'SeniorOfficialProfileAnalysisSystem'
+        DEPLOY_DIR = '/opt/SeniorOfficialProfileAnalysisSystem'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('后端测试') {
+            steps {
+                dir('src_gpt5.6') {
+                    sh '''
+                        python3 -m venv .ci-venv
+                        .ci-venv/bin/python -m pip install --upgrade pip -q
+                        .ci-venv/bin/python -m pip install -r app/backend/requirements.txt -q
+                        .ci-venv/bin/python -m pytest -q
+                    '''
+                }
+            }
+        }
+
+        stage('前端构建') {
+            steps {
+                dir('src_gpt5.6/app/frontend') {
+                    sh 'npm ci && npm run build'
+                }
+            }
+        }
+
+        stage('停止当前服务') {
+            steps {
+                sh 'if [ -x "$DEPLOY_DIR/stop.sh" ]; then "$DEPLOY_DIR/stop.sh"; fi'
+            }
+        }
+
+        stage('更新部署') {
+            steps {
+                sh '''
+                    set -e
+                    rsync -a --delete \
+                      --exclude data --exclude logs --exclude .venv --exclude .ci-venv \
+                      --exclude .pytest_cache --exclude __pycache__ --exclude node_modules \
+                      --exclude config/env.local \
+                      src_gpt5.6/ "$DEPLOY_DIR/"
+                    mkdir -p "$DEPLOY_DIR/data" "$DEPLOY_DIR/data/downloads" "$DEPLOY_DIR/logs"
+                    if [ ! -f "$DEPLOY_DIR/data/password.txt" ]; then
+                      printf '# 格式: username:password:role  (role 取值: admin | user)\\n# admin 默认拥有所有页面权限；user 的可见页面由管理员在权限管理页配置。\\n# 修改本文件后，新用户在下次登录时会自动同步到数据库。\\nadmin:admin123:admin\\n' > "$DEPLOY_DIR/data/password.txt"
+                    fi
+                    chmod +x "$DEPLOY_DIR"/*.sh
+                '''
+            }
+        }
+
+        stage('启动与健康检查') {
+            steps {
+                sh '''
+                    PORT=$(python3 -c "import json;print(json.load(open('$DEPLOY_DIR/config/app.json'))['server']['port'])" 2>/dev/null || echo 33380)
+                    JENKINS_NODE_COOKIE=dontKillMe "$DEPLOY_DIR/start.sh"
+                    sleep 5
+                    "$DEPLOY_DIR/status.sh"
+                    curl -fsS "http://127.0.0.1:$PORT/api/health"
+                '''
+            }
+        }
+    }
+
+    post {
+        failure {
+            sh '''
+                [ -f "$DEPLOY_DIR/logs/server.err" ] && tail -n 80 "$DEPLOY_DIR/logs/server.err" || true
+                [ -f "$DEPLOY_DIR/logs/server.out" ] && tail -n 50 "$DEPLOY_DIR/logs/server.out" || true
+            '''
+        }
+        success {
+            sh '''
+                PORT=$(python3 -c "import json;print(json.load(open('$DEPLOY_DIR/config/app.json'))['server']['port'])" 2>/dev/null || echo 33380)
+                echo "部署成功，访问 http://192.168.0.111:$PORT 验证"
+            '''
+        }
+    }
+}

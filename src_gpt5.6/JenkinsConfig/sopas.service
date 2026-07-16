@@ -1,0 +1,29 @@
+# 高级官员履历分析系统 systemd 服务单元 (Linux)
+#
+# 端口由 config/app.json 的 server.port 决定（run.sh 读取），无需在本单元硬编码。
+# 如需覆盖，取消下行注释并改端口：
+#   Environment=SOPAS_SERVER_PORT=29000
+#
+# 安装方式（部署路径以 /opt/SeniorOfficialProfileAnalysisSystem 为例，按实际调整）：
+#   sudo cp JenkinsConfig/sopas.service /etc/systemd/system/sopas.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sopas
+# 常用命令：
+#   sudo systemctl start sopas | stop sopas | restart sopas | status sopas
+#   sudo journalctl -u sopas -f
+# 注意：部署目录属 jenkins 用户，故以 jenkins 运行；如改用其它用户请同步 chown。
+
+[Unit]
+Description=SeniorOfficialProfileAnalysisSystem (高级官员履历分析系统)
+After=network.target
+
+[Service]
+Type=simple
+User=jenkins
+WorkingDirectory=/opt/SeniorOfficialProfileAnalysisSystem
+ExecStart=/opt/SeniorOfficialProfileAnalysisSystem/run.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

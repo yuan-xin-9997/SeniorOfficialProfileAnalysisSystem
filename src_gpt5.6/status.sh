@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# 查看高级官员履历分析系统状态 (Linux/macOS)
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PID_FILE="$SCRIPT_DIR/logs/server.pid"
+# 部署目录属主（如 jenkins）才有写权限；若以其他用户运行，自动 sudo 到属主再执行。
+OWNER=$(stat -c %U "$SCRIPT_DIR" 2>/dev/null || true)
+if [ -z "${SOPAS_NO_SUDO:-}" ] && [ -n "$OWNER" ] && [ "$(id -un)" != "$OWNER" ] && [ "$(id -un)" != "root" ] && command -v sudo >/dev/null 2>&1; then
+  exec sudo -u "$OWNER" SOPAS_NO_SUDO=1 bash "$0" "$@"
+fi
+# 端口优先取 SOPAS_SERVER_PORT 环境变量；否则读 config/app.json；均失败回落 33380
+if [ -z "${SOPAS_SERVER_PORT:-}" ]; then
+  SOPAS_SERVER_PORT=$(python3 -c "import json;print(json.load(open('$SCRIPT_DIR/config/app.json'))['server']['port'])" 2>/dev/null || echo 33380)
+fi
+PORT="$SOPAS_SERVER_PORT"
+
+if [ -f "$PID_FILE" ]; then
+  PID="$(cat "$PID_FILE")"
+  if kill -0 "$PID" >/dev/null 2>&1; then
+    echo "运行中 (PID $PID)"
+    if curl -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+      echo "健康检查: OK (http://127.0.0.1:$PORT/api/health)"
+    else
+      echo "健康检查: 失败 (端口 $PORT 无响应)"
+    fi
+    exit 0
+  else
+    echo "PID $PID 未运行"; exit 1
+  fi
+else
+  echo "未运行（无 PID 文件）"; exit 1
+fi
