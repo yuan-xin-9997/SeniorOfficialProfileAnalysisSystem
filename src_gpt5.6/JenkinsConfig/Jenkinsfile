@@ -59,7 +59,25 @@ pipeline {
 
         stage('停止当前服务') {
             steps {
-                sh 'if [ -x "$DEPLOY_DIR/stop.sh" ]; then "$DEPLOY_DIR/stop.sh"; fi'
+                sh '''
+                    set -e
+                    PORT=$(python3 -c "import json;print(json.load(open('src_gpt5.6/config/app.json'))['server']['port'])" 2>/dev/null || echo 33380)
+
+                    # 当前目录部署与历史 src_gpt5.5 部署均可能仍在运行。
+                    if [ -x "$DEPLOY_DIR/stop.sh" ]; then
+                      "$DEPLOY_DIR/stop.sh" || true
+                    fi
+                    if [ -x "$DEPLOY_DIR/src_gpt5.5/stop.sh" ]; then
+                      "$DEPLOY_DIR/src_gpt5.5/stop.sh" || true
+                    fi
+
+                    # PID 文件可能已过期；端口是该 Jenkins 任务的专用端口，
+                    # 最后清理遗留监听进程，避免新版本启动时地址冲突。
+                    if command -v fuser >/dev/null 2>&1; then
+                      fuser -k "$PORT/tcp" >/dev/null 2>&1 || true
+                    fi
+                    sleep 2
+                '''
             }
         }
 
