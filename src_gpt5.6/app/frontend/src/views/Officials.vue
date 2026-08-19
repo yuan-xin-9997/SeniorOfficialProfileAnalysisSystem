@@ -1,12 +1,12 @@
 <template>
   <div>
     <div class="toolbar search-toolbar">
-      <div class="search-box"><span>⌕</span><input v-model="keyword" placeholder="搜索姓名、职务或机构" @keyup.enter="load" /></div>
-      <div class="button-row"><button @click="load">查询</button><button class="primary" @click="openCreate">＋ 新建履历</button></div>
+      <div class="search-box"><span>⌕</span><input v-model="keyword" placeholder="搜索姓名、职务或机构" @keyup.enter="search" /></div>
+      <div class="button-row"><button @click="search">查询</button><button class="primary" @click="openCreate">＋ 新建履历</button></div>
     </div>
 
     <div class="filter-row">
-      <button v-for="item in statuses" :key="item" :class="{ active: statusFilter === item }" @click="statusFilter = item; load()">{{ item || '全部' }}</button>
+      <button v-for="item in statuses" :key="item" :class="{ active: statusFilter === item }" @click="selectStatus(item)">{{ item || '全部' }}</button>
       <span class="muted">共 {{ total }} 人</span>
     </div>
 
@@ -22,6 +22,14 @@
         </div>
         <span class="profile-arrow">→</span>
       </article>
+    </div>
+
+    <div v-if="total > 0" class="toolbar" style="margin-top: 16px">
+      <span class="muted">第 {{ page }} / {{ totalPages }} 页，每页 {{ pageSize }} 人</span>
+      <div class="button-row">
+        <button :disabled="page <= 1" @click="goToPage(page - 1)">上一页</button>
+        <button :disabled="page >= totalPages" @click="goToPage(page + 1)">下一页</button>
+      </div>
     </div>
 
     <div v-if="detail" class="modal" @click.self="detail = null">
@@ -52,17 +60,26 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { showToast } from '@/composables/toast'
 import { createOfficialApi, deleteOfficialApi, getOfficialApi, listOfficialsApi, updateOfficialApi, type Career, type Official } from '@/api/officials'
 
 const officials = ref<Official[]>([]); const total = ref(0); const keyword = ref(''); const statusFilter = ref('')
+const page = ref(1); const pageSize = 20; const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const statuses = ['', '在任', '离任', '退休']; const detail = ref<Official | null>(null); const editorOpen = ref(false); const tagText = ref('')
 const emptyCareer = (): Career => ({ start_date: '', end_date: '至今', organization: '', position: '', location: '', administrative_rank: '', description: '', sort_order: 0 })
 const form = reactive<any>({ id: 0, name: '', gender: '', birth_date: '', ethnicity: '', native_place: '', education: '', current_position: '', organization: '', administrative_rank: '', status: '在任', summary: '', photo_url: '', source_url: '', tags: [], careers: [] })
 
 onMounted(load)
-async function load() { const data = await listOfficialsApi({ keyword: keyword.value, status: statusFilter.value }); officials.value = data.items; total.value = data.total }
+async function load() {
+  const data = await listOfficialsApi({ keyword: keyword.value, status: statusFilter.value, page: page.value, page_size: pageSize })
+  total.value = data.total
+  if (page.value > totalPages.value) { page.value = totalPages.value; await load(); return }
+  officials.value = data.items
+}
+async function search() { page.value = 1; await load() }
+async function selectStatus(status: string) { statusFilter.value = status; page.value = 1; await load() }
+async function goToPage(target: number) { if (target < 1 || target > totalPages.value || target === page.value) return; page.value = target; await load() }
 async function openDetail(id: number) { detail.value = await getOfficialApi(id) }
 function resetForm() { Object.assign(form, { id: 0, name: '', gender: '', birth_date: '', ethnicity: '', native_place: '', education: '', current_position: '', organization: '', administrative_rank: '', status: '在任', summary: '', photo_url: '', source_url: '', tags: [], careers: [] }); tagText.value = '' }
 function openCreate() { resetForm(); editorOpen.value = true }

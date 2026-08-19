@@ -69,6 +69,22 @@ class RelationOut(RelationCreate):
     created_at: BeijingDatetime
 
 
+class RelationAnalysisRequest(ORMBase):
+    source_id: int
+    target_id: int
+
+
+class RelationAnalysisResult(ORMBase):
+    source_id: int
+    target_id: int
+    source_name: str
+    target_name: str
+    relation_type: str
+    summary: str
+    evidence: list[str] = []
+    confidence: str = "中"
+
+
 class OfficialPage(ORMBase):
     items: list[OfficialBrief]
     total: int

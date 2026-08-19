@@ -1,6 +1,8 @@
 """高级官员履历管理、统计与关系网络 API。"""
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
@@ -11,8 +13,9 @@ from ..models.official import Career, Official, OfficialRelation
 from ..models.user import User
 from ..schemas.official import (
     DashboardStats, OfficialCreate, OfficialDetail, OfficialPage, OfficialUpdate,
-    RelationCreate, RelationOut,
+    RelationAnalysisRequest, RelationAnalysisResult, RelationCreate, RelationOut,
 )
+from ..services.analysis.llm_client import LLMClient, LLMError
 
 router = APIRouter(prefix="/api/officials", tags=["高级官员履历"])
 access = require_page("officials")
@@ -68,6 +71,58 @@ def list_relations(_: User = Depends(require_page("relations")), db: Session = D
     rows = db.query(OfficialRelation).options(selectinload(OfficialRelation.source), selectinload(OfficialRelation.target)).all()
     return [RelationOut(id=r.id, source_id=r.source_id, target_id=r.target_id, relation_type=r.relation_type,
         description=r.description, source_name=r.source.name, target_name=r.target.name, created_at=r.created_at) for r in rows]
+
+
+def _profile_text(official: Official) -> str:
+    careers = sorted(official.careers, key=lambda item: (item.sort_order, item.id or 0))
+    timeline = "\n".join(
+        f"- {item.start_date or '未知'} 至 {item.end_date or '未知'}：{item.organization or '未知机构'}，"
+        f"{item.position or '未知职务'}，{item.location or '地点未知'}；{item.description or '无补充说明'}"
+        for item in careers
+    ) or "- 暂无任职经历"
+    return (
+        f"姓名：{official.name}\n现任职务：{official.current_position or '未知'}\n"
+        f"所属机构：{official.organization or '未知'}\n籍贯：{official.native_place or '未知'}\n"
+        f"学历：{official.education or '未知'}\n标签：{'、'.join(official.tags) or '无'}\n"
+        f"人物概述：{official.summary or '无'}\n任职时间轴：\n{timeline}"
+    )
+
+
+@router.post("/relations/analyze", response_model=RelationAnalysisResult)
+def analyze_relation(payload: RelationAnalysisRequest, _: User = Depends(require_page("relations")), db: Session = Depends(get_db)):
+    if payload.source_id == payload.target_id:
+        raise HTTPException(400, "请选择两位不同人物")
+    rows = db.query(Official).options(selectinload(Official.careers)).filter(Official.id.in_([payload.source_id, payload.target_id])).all()
+    by_id = {row.id: row for row in rows}
+    source, target = by_id.get(payload.source_id), by_id.get(payload.target_id)
+    if not source or not target:
+        raise HTTPException(404, "关系人物不存在")
+    system_prompt = (
+        "你是严谨的公开人物履历关系分析助手。只能依据输入履历判断两人的关系，不得虚构未提供的事实。"
+        "重叠任职、同机构、上下级、同乡、校友等均须指出具体履历依据；证据不足时明确写明未发现直接关系。"
+        "只返回 JSON 对象，不要使用 Markdown。"
+    )
+    user_prompt = (
+        "分析以下两人的可能关系。返回字段：relation_type（简短关系类型，证据不足写‘未发现直接关系’）、"
+        "summary（完整分析结论）、evidence（字符串数组，列出履历中的时间、机构等依据）、confidence（高/中/低）。\n\n"
+        f"人物 A：\n{_profile_text(source)}\n\n人物 B：\n{_profile_text(target)}"
+    )
+    try:
+        raw = LLMClient().chat(system_prompt, user_prompt).strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        result = json.loads(raw)
+    except LLMError as exc:
+        raise HTTPException(502, f"关系分析失败：{exc}") from exc
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise HTTPException(502, "关系分析失败：模型未返回有效的结构化结果") from exc
+    return RelationAnalysisResult(
+        source_id=source.id, target_id=target.id, source_name=source.name, target_name=target.name,
+        relation_type=str(result.get("relation_type") or "未发现直接关系"),
+        summary=str(result.get("summary") or "模型未给出分析结论"),
+        evidence=[str(item) for item in result.get("evidence", [])],
+        confidence=str(result.get("confidence") or "中"),
+    )
 
 
 @router.post("/relations", response_model=RelationOut, status_code=status.HTTP_201_CREATED)
