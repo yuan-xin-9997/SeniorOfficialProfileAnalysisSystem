@@ -20,13 +20,15 @@ Browser → Vue 3 SPA → FastAPI API → SQLAlchemy → SQLite
 - `core/config.py`：读取 `config/app.json`，接受 `SOPAS_*` 环境变量覆盖。
 - `core/security.py`：密码文件同步、哈希校验、JWT 签发与页面权限计算。
 - `core/database.py`：SQLAlchemy 会话、建表、SQLite 外键启用。
-- `api/officials.py`：履历 CRUD、统计、机构和人物关系 API。
+- `api/officials.py`：履历 CRUD、统计、机构、批量时间线和人物关系 API。
 - `api/info_sources.py`：信息源与采集条目 API。
 - `api/analysis_tasks.py`：分析任务、运行和结果 API。
 - `api/task_center.py`：统一任务和日志查询。
 - `services/worker.py`：进程内有界线程池。
 
 API 以 `/api` 为前缀，认证使用 Bearer Token。页面级接口通过 `require_page` 校验；管理员接口通过 `require_admin` 校验。
+
+时间线使用 `POST /api/officials/timeline` 批量加载人物及任职经历，去重后保持选择顺序。前端将常见年月格式归一为月份序号，以全局最早和最晚月份生成纵向网格，并以人物泳道横向展示任职区间。
 
 ## 3. 数据设计
 

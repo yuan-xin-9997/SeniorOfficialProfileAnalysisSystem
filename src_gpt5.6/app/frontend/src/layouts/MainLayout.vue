@@ -57,6 +57,7 @@ const serviceOk = ref(true)
 const allMenus = [
   { path: '/dashboard', page: 'dashboard', icon: '概', title: '概览' },
   { path: '/officials', page: 'officials', icon: '人', title: '履历档案' },
+  { path: '/timeline', page: 'timeline', icon: '时', title: '时间线' },
   { path: '/relations', page: 'relations', icon: '网', title: '关系图谱' },
   { path: '/info-sources', page: 'info_sources', icon: '源', title: '信息源管理' },
   { path: '/analysis-tasks', icon: '析', page: 'analysis_tasks', title: '分析任务' },
@@ -69,6 +70,7 @@ const allMenus = [
 const pageMeta: Record<string, [string, string]> = {
   dashboard: ['概览', '信息源、分析任务与最近运行的整体情况'],
   officials: ['履历档案', '检索、维护和浏览高级官员结构化履历'],
+  timeline: ['时间线', '按年月对齐并横向比较多位人物的任职履历'],
   relations: ['关系图谱', '发现人物之间的同事、上下级与地域关系'],
   info_sources: ['信息源管理', '管理履历采集所需的官方网站、本地文件夹与 FreshRSS'],
   analysis_tasks: ['分析任务', '绑定信息源并触发全量或增量智能分析'],

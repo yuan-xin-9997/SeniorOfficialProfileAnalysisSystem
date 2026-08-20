@@ -73,6 +73,31 @@ def test_official_list_pagination(client, admin_headers):
     assert len(second_page.json()["items"]) == 1
 
 
+def test_timeline_loads_selected_profiles_in_order(client, admin_headers):
+    first = client.post("/api/officials", json=_profile("时间线甲"), headers=admin_headers).json()
+    second = client.post("/api/officials", json=_profile("时间线乙"), headers=admin_headers).json()
+
+    response = client.post(
+        "/api/officials/timeline",
+        json={"official_ids": [second["id"], first["id"], second["id"]]},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert [item["name"] for item in response.json()["officials"]] == ["时间线乙", "时间线甲"]
+    assert response.json()["officials"][0]["careers"][0]["start_date"] == "2020.01"
+    candidates = client.get("/api/officials/timeline/candidates", headers=admin_headers)
+    assert candidates.status_code == 200
+    assert {item["name"] for item in candidates.json()} == {"时间线甲", "时间线乙"}
+
+
+def test_timeline_rejects_missing_profile(client, admin_headers):
+    response = client.post(
+        "/api/officials/timeline", json={"official_ids": [99999]}, headers=admin_headers
+    )
+    assert response.status_code == 404
+
+
 def test_relation_analysis_uses_both_profiles(client, admin_headers, monkeypatch):
     first = client.post("/api/officials", json=_profile("分析甲"), headers=admin_headers).json()
     second_payload = _profile("分析乙")

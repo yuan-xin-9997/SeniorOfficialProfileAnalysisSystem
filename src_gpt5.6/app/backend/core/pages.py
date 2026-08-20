@@ -8,6 +8,7 @@ from __future__ import annotations
 PAGE_DEFINITIONS: list[dict[str, str | bool]] = [
     {"key": "dashboard", "label": "概览", "grantable": True},
     {"key": "officials", "label": "履历档案", "grantable": True},
+    {"key": "timeline", "label": "时间线", "grantable": True},
     {"key": "relations", "label": "关系图谱", "grantable": True},
     {"key": "info_sources", "label": "信息源管理", "grantable": True},
     {"key": "analysis_tasks", "label": "分析任务", "grantable": True},

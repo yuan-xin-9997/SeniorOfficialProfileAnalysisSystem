@@ -12,8 +12,9 @@ from ..core.deps import require_page
 from ..models.official import Career, Official, OfficialRelation
 from ..models.user import User
 from ..schemas.official import (
-    DashboardStats, OfficialCreate, OfficialDetail, OfficialPage, OfficialUpdate,
+    DashboardStats, OfficialBrief, OfficialCreate, OfficialDetail, OfficialPage, OfficialUpdate,
     RelationAnalysisRequest, RelationAnalysisResult, RelationCreate, RelationOut,
+    TimelineRequest, TimelineResult,
 )
 from ..services.analysis.llm_client import LLMClient, LLMError
 
@@ -64,6 +65,35 @@ def dashboard(_: User = Depends(require_page("dashboard")), db: Session = Depend
 def organizations(_: User = Depends(access), db: Session = Depends(get_db)):
     rows = db.query(Official.organization).filter(Official.organization != "").distinct().order_by(Official.organization).all()
     return [row[0] for row in rows]
+
+
+@router.post("/timeline", response_model=TimelineResult)
+def load_timeline(
+    payload: TimelineRequest,
+    _: User = Depends(require_page("timeline")),
+    db: Session = Depends(get_db),
+):
+    """Load complete career archives for the selected people in selection order."""
+    official_ids = list(dict.fromkeys(payload.official_ids))
+    rows = (
+        db.query(Official)
+        .options(selectinload(Official.careers))
+        .filter(Official.id.in_(official_ids))
+        .all()
+    )
+    by_id = {row.id: row for row in rows}
+    missing = [official_id for official_id in official_ids if official_id not in by_id]
+    if missing:
+        raise HTTPException(404, f"人物履历不存在：{', '.join(map(str, missing))}")
+    return TimelineResult(officials=[by_id[official_id] for official_id in official_ids])
+
+
+@router.get("/timeline/candidates", response_model=list[OfficialBrief])
+def timeline_candidates(
+    _: User = Depends(require_page("timeline")), db: Session = Depends(get_db)
+):
+    """List selectable people without requiring access to the archive editor page."""
+    return db.query(Official).order_by(Official.name).all()
 
 
 @router.get("/relations", response_model=list[RelationOut])

@@ -92,6 +92,22 @@ class OfficialPage(ORMBase):
     page_size: int
 
 
+class TimelineRequest(ORMBase):
+    official_ids: list[int] = Field(min_length=1, max_length=20)
+
+
+class TimelineOfficial(ORMBase):
+    id: int
+    name: str
+    current_position: str = ""
+    organization: str = ""
+    careers: list[CareerData]
+
+
+class TimelineResult(ORMBase):
+    officials: list[TimelineOfficial]
+
+
 class DashboardStats(ORMBase):
     official_count: int
     active_count: int

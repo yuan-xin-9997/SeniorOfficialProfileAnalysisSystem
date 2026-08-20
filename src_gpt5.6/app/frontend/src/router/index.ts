@@ -15,6 +15,7 @@ const routes: RouteRecordRaw[] = [
       { path: '', redirect: '/dashboard' },
       { path: 'dashboard', component: () => import('@/views/Dashboard.vue'), meta: { page: 'dashboard', title: '概览' } },
       { path: 'officials', component: () => import('@/views/Officials.vue'), meta: { page: 'officials', title: '履历档案' } },
+      { path: 'timeline', component: () => import('@/views/Timeline.vue'), meta: { page: 'timeline', title: '时间线' } },
       { path: 'relations', component: () => import('@/views/Relations.vue'), meta: { page: 'relations', title: '关系图谱' } },
       { path: 'info-sources', component: () => import('@/views/InfoSources.vue'), meta: { page: 'info_sources', title: '信息源管理' } },
       { path: 'analysis-tasks', component: () => import('@/views/AnalysisTasks.vue'), meta: { page: 'analysis_tasks', title: '分析任务' } },
