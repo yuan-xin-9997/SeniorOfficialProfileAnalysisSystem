@@ -1,7 +1,7 @@
 # 高级官员履历分析系统设计说明书
 
 版本：2.0（`src_gpt5.6`）
-更新日期：2026-07-16
+更新日期：2026-08-30
 
 ## 1. 总体架构
 
@@ -19,8 +19,8 @@ Browser → Vue 3 SPA → FastAPI API → SQLAlchemy → SQLite
 
 - `core/config.py`：读取 `config/app.json`，接受 `SOPAS_*` 环境变量覆盖。
 - `core/security.py`：密码文件同步、哈希校验、JWT 签发与页面权限计算。
-- `core/database.py`：SQLAlchemy 会话、建表、SQLite 外键启用。
-- `api/officials.py`：履历 CRUD、统计、机构、批量时间线和人物关系 API。
+- `core/database.py`：SQLAlchemy 会话、建表、SQLite 外键启用，以及 `officials.party_role` 的旧库补列迁移与标签回填。
+- `api/officials.py`：履历 CRUD、统计、机构、批量时间线和人物关系 API；列表接口支持 `status` 与 `party_role` 筛选，党内职务按“常委 ⊂ 政治局委员 ⊂ 中央委员”层级展开匹配，未知取值返回 400。
 - `api/info_sources.py`：信息源与采集条目 API。
 - `api/analysis_tasks.py`：分析任务、运行和结果 API。
 - `api/task_center.py`：统一任务和日志查询。
@@ -35,13 +35,13 @@ API 以 `/api` 为前缀，认证使用 Bearer Token。页面级接口通过 `re
 核心表：
 
 - `users`、`page_permissions`：用户与页面授权。
-- `officials`：人物基本履历。
+- `officials`：人物基本履历，含党内职务 `party_role`（中央政治局常委/中央政治局委员/中央委员/中央候补委员，空表示无）。旧库升级时自动补列并按标签回填中央委员/候补委员。
 - `careers`：人物一对多任职经历，人物删除时级联删除。
 - `official_relations`：人物间有向关系，人物对、关系类型唯一。
 - `info_sources`、`info_items`：信息源和采集内容。
 - `analysis_tasks`、`task_sources`、`analysis_results`：分析定义、来源绑定和结果。
 - `task_runs`、`task_logs`：后台运行审计。
-- 内置种子数据：`data/seed/officials_20th_cc.json` 存放二十届中央委员/候补委员履历（与 `OfficialCreate` 结构一致），由 `scripts/import_officials.py` 按姓名幂等导入；采集与解析脚本（维基名单/条目抓取、简历抽取、种子生成）保留在仓库根 `scripts/ccdata/` 以便追溯与再生成。
+- 内置种子数据：`data/seed/officials_20th_cc.json` 存放二十届中央委员/候补委员履历（与 `OfficialCreate` 结构一致，含按二十届政治局常委/委员名单生成的 `party_role` 字段），由 `scripts/import_officials.py` 按姓名幂等导入；采集与解析脚本（维基名单/条目抓取、简历抽取、种子生成）保留在仓库根 `scripts/ccdata/` 以便追溯与再生成。
 
 数据时间保存为 UTC naive datetime，Pydantic 输出时转换为 `Asia/Shanghai`。SQLite 连接打开 `PRAGMA foreign_keys=ON`。
 

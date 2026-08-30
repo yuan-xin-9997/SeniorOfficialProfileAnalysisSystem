@@ -28,6 +28,21 @@ LEVEL_MAP = {
     "副科": "副乡科级",
 }
 
+# 二十届中央政治局常委与委员公开名单（2022.10 二十届一中全会选出）。
+PSC_NAMES = {"习近平", "李强", "赵乐际", "王沪宁", "蔡奇", "丁薛祥", "李希"}
+POLITBURO_NAMES = PSC_NAMES | {
+    "马兴瑞", "王毅", "尹力", "石泰峰", "刘国中", "李干杰", "李书磊", "李鸿忠",
+    "何卫东", "何立峰", "张国清", "张又侠", "陈文清", "陈吉宁", "陈敏尔", "袁家军", "黄坤明",
+}
+
+
+def derive_party_role(name: str, is_member: bool) -> str:
+    if name in PSC_NAMES:
+        return "中央政治局常委"
+    if name in POLITBURO_NAMES:
+        return "中央政治局委员"
+    return "中央委员" if is_member else "中央候补委员"
+
 ROLE_WORDS = (
     "党委书记", "副书记", "书记", "部长", "局长", "主席", "省长", "市长", "董事长",
     "总经理", "主任", "委员长", "院长", "校长", "政委", "司令员", "院长", "行长",
@@ -238,6 +253,7 @@ def build_record(p: dict, is_member: bool, promoted: bool) -> dict:
         "organization": org,
         "administrative_rank": LEVEL_MAP.get(level, level if level not in ("/", "—") else ""),
         "status": status,
+        "party_role": derive_party_role(name, is_member),
         "summary": summary[:2000],
         "photo_url": "",
         "source_url": "https://zh.wikipedia.org/wiki/" + p.get("article", ""),

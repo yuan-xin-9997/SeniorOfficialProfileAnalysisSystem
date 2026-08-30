@@ -24,6 +24,7 @@ export interface Official {
   organization: string
   administrative_rank: string
   status: string
+  party_role: string
   summary: string
   photo_url: string
   source_url: string

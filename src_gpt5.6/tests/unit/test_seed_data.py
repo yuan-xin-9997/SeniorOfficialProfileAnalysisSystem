@@ -44,6 +44,26 @@ def test_seed_file_loads_and_matches_schema():
 
 
 @pytest.mark.skipif(not SEED.exists(), reason="seed file not present")
+def test_seed_party_role_dimensions():
+    from collections import Counter
+
+    records = json.loads(SEED.read_text(encoding="utf-8"))
+    counts = Counter(r["party_role"] for r in records)
+    assert counts["中央政治局常委"] == 7, counts
+    assert counts["中央政治局委员"] == 17, counts
+    assert counts["中央委员"] == 195, counts
+    assert counts["中央候补委员"] == 157, counts
+
+    valid = {"", "中央政治局常委", "中央政治局委员", "中央委员", "中央候补委员"}
+    for rec in records:
+        assert rec["party_role"] in valid, (rec["name"], rec["party_role"])
+        if rec["party_role"] == "中央候补委员":
+            assert "中共二十届中央候补委员" in rec["tags"], rec["name"]
+        elif rec["party_role"]:
+            assert "中共二十届中央委员" in rec["tags"], rec["name"]
+
+
+@pytest.mark.skipif(not SEED.exists(), reason="seed file not present")
 def test_seed_career_dates_are_wellformed():
     import re
 

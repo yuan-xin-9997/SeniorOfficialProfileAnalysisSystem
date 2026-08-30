@@ -10,6 +10,16 @@ from ..core.database import Base
 from ..core.timeutil import utcnow
 
 
+def derive_party_role(tags: list[str] | None) -> str:
+    """按标签推导党内职务层级；政治局常委/委员名单由种子数据管线显式给出。"""
+    joined = "、".join(tags or [])
+    if "中央候补委员" in joined:
+        return "中央候补委员"
+    if "中央委员" in joined:
+        return "中央委员"
+    return ""
+
+
 class Official(Base):
     __tablename__ = "officials"
 
@@ -24,6 +34,7 @@ class Official(Base):
     organization: Mapped[str] = mapped_column(String(255), default="", index=True)
     administrative_rank: Mapped[str] = mapped_column(String(64), default="")
     status: Mapped[str] = mapped_column(String(32), default="在任", index=True)
+    party_role: Mapped[str] = mapped_column(String(32), default="", index=True)
     summary: Mapped[str] = mapped_column(Text, default="")
     photo_url: Mapped[str] = mapped_column(String(1024), default="")
     source_url: Mapped[str] = mapped_column(String(1024), default="")

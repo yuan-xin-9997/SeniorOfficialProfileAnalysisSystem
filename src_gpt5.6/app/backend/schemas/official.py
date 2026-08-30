@@ -31,6 +31,7 @@ class OfficialBase(ORMBase):
     organization: str = ""
     administrative_rank: str = ""
     status: str = "在任"
+    party_role: str = ""
     summary: str = ""
     photo_url: str = ""
     source_url: str = ""

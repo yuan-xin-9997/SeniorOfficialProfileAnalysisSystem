@@ -38,6 +38,35 @@ def init_db() -> None:
     from .. import models  # noqa: F401  (registers ORM models)
 
     Base.metadata.create_all(bind=engine)
+    _migrate_officials_party_role()
+
+
+def _migrate_officials_party_role() -> None:
+    """旧库增量升级：officials 表缺少 party_role 列时补列，并按标签回填历史数据。"""
+    from ..models.official import Official, derive_party_role
+
+    with engine.connect() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(officials)")}
+        if not columns or "party_role" in columns:
+            return
+        conn.exec_driver_sql(
+            "ALTER TABLE officials ADD COLUMN party_role VARCHAR(32) NOT NULL DEFAULT ''"
+        )
+        conn.commit()
+
+    db = SessionLocal()
+    try:
+        rows = db.query(Official).filter(Official.party_role == "").all()
+        changed = 0
+        for row in rows:
+            derived = derive_party_role(row.tags)
+            if derived:
+                row.party_role = derived
+                changed += 1
+        if changed:
+            db.commit()
+    finally:
+        db.close()
 
 
 def get_db() -> Iterator[Session]:

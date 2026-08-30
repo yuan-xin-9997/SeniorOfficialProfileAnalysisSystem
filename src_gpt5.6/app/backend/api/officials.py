@@ -21,6 +21,14 @@ from ..services.analysis.llm_client import LLMClient, LLMError
 router = APIRouter(prefix="/api/officials", tags=["高级官员履历"])
 access = require_page("officials")
 
+# 党内职务筛选为层级语义：政治局常委亦是政治局委员，政治局委员亦是中央委员。
+PARTY_ROLE_FILTERS: dict[str, tuple[str, ...]] = {
+    "中央政治局常委": ("中央政治局常委",),
+    "中央政治局委员": ("中央政治局常委", "中央政治局委员"),
+    "中央委员": ("中央政治局常委", "中央政治局委员", "中央委员"),
+    "中央候补委员": ("中央候补委员",),
+}
+
 
 def _replace_careers(db: Session, official: Official, careers) -> None:
     official.careers.clear()
@@ -33,6 +41,7 @@ def _replace_careers(db: Session, official: Official, careers) -> None:
 @router.get("", response_model=OfficialPage)
 def list_officials(
     keyword: str = "", status_filter: str = Query("", alias="status"),
+    party_role_filter: str = Query("", alias="party_role"),
     organization: str = "", page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(access), db: Session = Depends(get_db),
@@ -43,6 +52,11 @@ def list_officials(
         query = query.filter(or_(Official.name.like(pattern), Official.current_position.like(pattern), Official.organization.like(pattern)))
     if status_filter:
         query = query.filter(Official.status == status_filter)
+    if party_role_filter:
+        roles = PARTY_ROLE_FILTERS.get(party_role_filter)
+        if not roles:
+            raise HTTPException(400, f"不支持的党内职务筛选：{party_role_filter}")
+        query = query.filter(Official.party_role.in_(roles))
     if organization:
         query = query.filter(Official.organization == organization)
     total = query.count()

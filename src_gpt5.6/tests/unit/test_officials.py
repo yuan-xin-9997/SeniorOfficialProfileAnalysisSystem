@@ -73,6 +73,49 @@ def test_official_list_pagination(client, admin_headers):
     assert len(second_page.json()["items"]) == 1
 
 
+def test_party_role_roundtrip(client, admin_headers):
+    payload = _profile("党职甲")
+    payload["party_role"] = "中央政治局委员"
+    created = client.post("/api/officials", json=payload, headers=admin_headers)
+    assert created.status_code == 201, created.text
+    assert created.json()["party_role"] == "中央政治局委员"
+
+    payload["party_role"] = "中央委员"
+    updated = client.put(f"/api/officials/{created.json()['id']}", json=payload, headers=admin_headers)
+    assert updated.status_code == 200
+    assert updated.json()["party_role"] == "中央委员"
+
+    payload["party_role"] = ""
+    cleared = client.put(f"/api/officials/{created.json()['id']}", json=payload, headers=admin_headers)
+    assert cleared.json()["party_role"] == ""
+
+
+def test_party_role_filter_is_hierarchical(client, admin_headers):
+    roles = (("常委甲", "中央政治局常委"), ("局委甲", "中央政治局委员"), ("委员甲", "中央委员"),
+             ("候补甲", "中央候补委员"), ("无职甲", ""))
+    for name, role in roles:
+        payload = _profile(name)
+        payload["party_role"] = role
+        created = client.post("/api/officials", json=payload, headers=admin_headers)
+        assert created.status_code == 201, created.text
+
+    def names_for(params: dict) -> set[str]:
+        rows = client.get("/api/officials", params=params, headers=admin_headers).json()
+        return {item["name"] for item in rows["items"]}
+
+    assert names_for({"party_role": "中央政治局常委"}) == {"常委甲"}
+    assert names_for({"party_role": "中央政治局委员"}) == {"常委甲", "局委甲"}
+    assert names_for({"party_role": "中央委员"}) == {"常委甲", "局委甲", "委员甲"}
+    assert names_for({"party_role": "中央候补委员"}) == {"候补甲"}
+
+    # 与状态筛选可叠加
+    assert names_for({"party_role": "中央委员", "status": "在任"}) == {"常委甲", "局委甲", "委员甲"}
+    assert names_for({"party_role": "中央委员", "status": "退休"}) == set()
+
+    unsupported = client.get("/api/officials", params={"party_role": "军委主席"}, headers=admin_headers)
+    assert unsupported.status_code == 400
+
+
 def test_timeline_loads_selected_profiles_in_order(client, admin_headers):
     first = client.post("/api/officials", json=_profile("时间线甲"), headers=admin_headers).json()
     second = client.post("/api/officials", json=_profile("时间线乙"), headers=admin_headers).json()
