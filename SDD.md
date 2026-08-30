@@ -19,10 +19,10 @@ Browser → Vue 3 SPA → FastAPI API → SQLAlchemy → SQLite
 
 - `core/config.py`：读取 `config/app.json`，接受 `SOPAS_*` 环境变量覆盖。
 - `core/security.py`：密码文件同步、哈希校验、JWT 签发与页面权限计算。
-- `core/database.py`：SQLAlchemy 会话、建表、SQLite 外键启用，以及 `officials.party_role` 的旧库补列迁移与标签回填。
+- `core/database.py`：SQLAlchemy 会话、建表、SQLite 外键启用，以及启动期旧库迁移（`officials.party_role` 补列与标签回填、页面权限键别名合并去重）。
 - `api/officials.py`：履历 CRUD、统计、机构、批量时间线和人物关系 API；列表接口支持 `status` 与 `party_role` 筛选，党内职务按“常委 ⊂ 政治局委员 ⊂ 中央委员”层级展开匹配，未知取值返回 400。
 - `api/info_sources.py`：信息源与采集条目 API。
-- `api/analysis_tasks.py`：分析任务、运行和结果 API。
+- `api/analysis_tasks.py`：分析任务、运行和结果 API，统一使用合并后的 `analysis` 页面权限键。
 - `api/task_center.py`：统一任务和日志查询。
 - `services/worker.py`：进程内有界线程池。
 
@@ -71,7 +71,7 @@ Jenkins 流程：检出主分支 → 后端测试 → 前端构建 → 停止旧
 ## 7. 测试设计
 
 - 单元测试：配置、安全、时间、适配器、分析引擎、信息源、履历 CRUD、人物关系。
-- 冒烟测试：登录、信息源、分析任务、运行结果和健康接口。
+- 冒烟测试：登录、信息源、分析任务、运行结果、页面权限键迁移和健康接口。
 - 前端：`vue-tsc --noEmit` 与 Vite production build。
 - 部署：脚本状态检查和 Jenkins 健康检查。
 

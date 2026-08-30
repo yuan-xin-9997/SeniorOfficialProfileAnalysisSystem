@@ -23,8 +23,8 @@ from ..schemas.analysis import (
 from ..services import worker
 from ..services.analysis import run_analysis
 
-router = APIRouter(prefix="/api/analysis-tasks", tags=["分析任务"])
-results_router = APIRouter(prefix="/api/analysis-results", tags=["分析结果"])
+router = APIRouter(prefix="/api/analysis-tasks", tags=["智能分析"])
+results_router = APIRouter(prefix="/api/analysis-results", tags=["智能分析"])
 
 
 def _build_sources(task: AnalysisTask) -> list[TaskSourceOut]:
@@ -47,7 +47,7 @@ def _build_sources(task: AnalysisTask) -> list[TaskSourceOut]:
 
 @router.get("", response_model=list[AnalysisTaskDetailOut])
 def list_tasks(
-    _: User = Depends(require_page("analysis_tasks")), db: Session = Depends(get_db)
+    _: User = Depends(require_page("analysis")), db: Session = Depends(get_db)
 ):
     tasks = db.scalars(select(AnalysisTask).order_by(AnalysisTask.id.desc())).all()
     out: list[AnalysisTaskDetailOut] = []
@@ -61,7 +61,7 @@ def list_tasks(
 @router.post("", response_model=AnalysisTaskDetailOut, status_code=status.HTTP_201_CREATED)
 def create_task(
     req: AnalysisTaskCreate,
-    _: User = Depends(require_page("analysis_tasks")),
+    _: User = Depends(require_page("analysis")),
     db: Session = Depends(get_db),
 ):
     task = AnalysisTask(
@@ -84,7 +84,7 @@ def create_task(
 @router.get("/{task_id}", response_model=AnalysisTaskDetailOut)
 def get_task(
     task_id: int,
-    _: User = Depends(require_page("analysis_tasks")),
+    _: User = Depends(require_page("analysis")),
     db: Session = Depends(get_db),
 ):
     task = db.get(AnalysisTask, task_id)
@@ -99,7 +99,7 @@ def get_task(
 def update_task(
     task_id: int,
     req: AnalysisTaskUpdate,
-    _: User = Depends(require_page("analysis_tasks")),
+    _: User = Depends(require_page("analysis")),
     db: Session = Depends(get_db),
 ):
     task = db.get(AnalysisTask, task_id)
@@ -129,7 +129,7 @@ def update_task(
 @router.delete("/{task_id}")
 def delete_task(
     task_id: int,
-    _: User = Depends(require_page("analysis_tasks")),
+    _: User = Depends(require_page("analysis")),
     db: Session = Depends(get_db),
 ):
     task = db.get(AnalysisTask, task_id)
@@ -143,7 +143,7 @@ def delete_task(
 @router.get("/{task_id}/sources", response_model=list[TaskSourceOut])
 def list_task_sources(
     task_id: int,
-    _: User = Depends(require_page("analysis_tasks")),
+    _: User = Depends(require_page("analysis")),
     db: Session = Depends(get_db),
 ):
     task = db.get(AnalysisTask, task_id)
@@ -156,7 +156,7 @@ def list_task_sources(
 def run_task(
     task_id: int,
     req: RunAnalysisRequest,
-    _: User = Depends(require_page("analysis_tasks")),
+    _: User = Depends(require_page("analysis")),
     db: Session = Depends(get_db),
 ):
     if req.mode not in ("full", "incremental", "custom"):
@@ -188,7 +188,7 @@ def list_task_results(
     task_id: int,
     run_id: int | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
-    _: User = Depends(require_page("analysis_tasks")),
+    _: User = Depends(require_page("analysis")),
     db: Session = Depends(get_db),
 ):
     q = (
@@ -208,7 +208,7 @@ def list_results(
     run_id: int | None = Query(None),
     task_id: int | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
-    _: User = Depends(require_page("analysis_result")),
+    _: User = Depends(require_page("analysis")),
     db: Session = Depends(get_db),
 ):
     q = select(AnalysisResult).order_by(AnalysisResult.id.desc()).limit(limit)

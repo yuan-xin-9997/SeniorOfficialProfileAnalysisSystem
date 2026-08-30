@@ -3,7 +3,7 @@
     <div class="toolbar">
       <div class="stats"><strong>{{ tasks.length }}</strong><span>个分析任务</span></div>
       <div class="button-row">
-        <button @click="load">刷新</button>
+        <button @click="loadAll">刷新</button>
         <button class="primary" @click="openCreate">＋ 新建分析任务</button>
       </div>
     </div>
@@ -35,12 +35,39 @@
             <button class="accent" @click="onRun(t.id, 'incremental')">增量</button>
             <button @click="onRun(t.id, 'full')">全量</button>
           </template>
-          <button @click="goResults(t.id)">结果</button>
+          <button @click="showResults(t.id)">结果</button>
           <button @click="openEdit(t)">编辑</button>
           <button class="danger" @click="onDelete(t)">删除</button>
         </div>
       </article>
     </div>
+
+    <section ref="resultsSection" class="panel results-panel">
+      <div class="panel-head">
+        <h2>分析结果</h2>
+        <div class="button-row">
+          <select v-model="resultTaskId" @change="loadResults" style="width:auto;margin:0">
+            <option :value="undefined">全部任务</option>
+            <option v-for="t in tasks" :key="t.id" :value="t.id">{{ t.name }}</option>
+          </select>
+          <button @click="loadResults">刷新结果</button>
+        </div>
+      </div>
+      <div v-if="!results.length" class="empty compact"><b>暂无分析结果</b><span>触发分析任务后将在此展示。</span></div>
+      <div v-else class="item-list">
+        <article v-for="r in results" :key="r.id" class="item-card" style="cursor:pointer" @click="openContent(r)">
+          <div class="file-icon">{{ r.result_type === 'aggregate' ? '总' : '条' }}</div>
+          <div class="grow">
+            <div class="item-title">
+              <h3>{{ r.source_name || '未知源' }}</h3>
+              <span :class="['pill', r.result_type === 'aggregate' ? 'warning' : 'ok']">{{ r.result_type === 'aggregate' ? '汇总' : '逐条' }}</span>
+            </div>
+            <p>{{ r.content.slice(0, 120) }}</p>
+            <div class="meta"><span>{{ r.created_at }}</span></div>
+          </div>
+        </article>
+      </div>
+    </section>
 
     <div v-if="dialogVisible" class="modal" @click.self="dialogVisible = false">
       <form class="modal-card large" @submit.prevent="onSave">
@@ -147,20 +174,32 @@
         </table>
       </div>
     </div>
+
+    <div v-if="contentVisible" class="modal" @click.self="contentVisible = false">
+      <div class="modal-card large">
+        <div class="modal-head">
+          <div><p class="eyebrow">ANALYSIS</p><h2>分析内容</h2></div>
+          <button type="button" @click="contentVisible = false">×</button>
+        </div>
+        <pre class="content-pre">{{ currentContent }}</pre>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { showToast } from '@/composables/toast'
 import { listSourcesApi, queryItemsApi, type InfoSource, type InfoItemBrief } from '@/api/sources'
 import {
   listTasksApi, createTaskApi, updateTaskApi, deleteTaskApi, runTaskApi, getTaskApi,
-  type AnalysisTaskDetail, type TaskSourceOut,
+  listAllResultsApi, listTaskResultsApi,
+  type AnalysisTaskDetail, type AnalysisResult, type TaskSourceOut,
 } from '@/api/tasks'
 
-const router = useRouter()
+const route = useRoute()
+
 const tasks = ref<AnalysisTaskDetail[]>([])
 const allSources = ref<InfoSource[]>([])
 const dialogVisible = ref(false)
@@ -176,6 +215,13 @@ const configText = ref('')
 const detailVisible = ref(false)
 const detailSources = ref<TaskSourceOut[]>([])
 
+// 分析结果区
+const resultsSection = ref<HTMLElement | null>(null)
+const resultTaskId = ref<number | undefined>(undefined)
+const results = ref<AnalysisResult[]>([])
+const contentVisible = ref(false)
+const currentContent = ref('')
+
 // 条目选择器（自定义模式）
 const pickerVisible = ref(false)
 const pickerItems = ref<InfoItemBrief[]>([])
@@ -185,13 +231,31 @@ const pickerFilter = ref<'' | 'analyzed' | 'unanalyzed'>('')
 const pickerTotal = ref(0)
 const pickerTotalPages = computed(() => Math.max(1, Math.ceil(pickerTotal.value / pickerPageSize.value)))
 
-onMounted(async () => {
-  await load()
-  allSources.value = await listSourcesApi()
+onMounted(() => {
+  // 兼容旧「分析结果」页书签：/analysis?task_id=N 直接套用结果筛选。
+  const q = route.query.task_id
+  if (q) resultTaskId.value = Number(q)
+  return loadAll()
 })
 
-async function load() {
+async function loadAll() {
   tasks.value = await listTasksApi()
+  allSources.value = await listSourcesApi()
+  await loadResults()
+}
+
+async function loadResults() {
+  if (resultTaskId.value) {
+    results.value = await listTaskResultsApi(resultTaskId.value)
+  } else {
+    results.value = await listAllResultsApi({ limit: 100 })
+  }
+}
+
+async function showResults(taskId: number) {
+  resultTaskId.value = taskId
+  await loadResults()
+  resultsSection.value?.scrollIntoView({ behavior: 'smooth' })
 }
 
 function modeLabel(m?: string) {
@@ -254,7 +318,7 @@ async function onSave() {
     }
     showToast('保存成功')
     dialogVisible.value = false
-    await load()
+    await loadAll()
   } catch {
     /* handled */
   }
@@ -264,7 +328,8 @@ async function onDelete(t: AnalysisTaskDetail) {
   if (!confirm(`确认删除分析任务「${t.name}」？`)) return
   await deleteTaskApi(t.id)
   showToast('已删除')
-  await load()
+  if (resultTaskId.value === t.id) resultTaskId.value = undefined
+  await loadAll()
 }
 
 async function onRun(id: number, mode: 'full' | 'incremental' | 'custom') {
@@ -279,8 +344,9 @@ async function openDetail(t: AnalysisTaskDetail) {
   detailVisible.value = true
 }
 
-function goResults(taskId: number) {
-  router.push({ path: '/analysis-result', query: { task_id: taskId } })
+function openContent(r: AnalysisResult) {
+  currentContent.value = r.content
+  contentVisible.value = true
 }
 
 // ---- 条目选择器 ----

@@ -16,7 +16,7 @@
         <div class="panel-head"><div><p class="eyebrow">DATA INSIGHT</p><h2>数据完整度提示</h2></div></div>
         <div class="insight-number">{{ completion }}<small>%</small></div><p>最近录入人物中，具备机构与现任职务信息的比例。</p>
         <div class="progress"><i :style="{ width: `${completion}%` }"></i></div>
-        <div class="insight-actions"><button @click="$router.push('/info-sources')">管理采集源</button><button class="primary" @click="$router.push('/analysis-tasks')">运行智能分析</button></div>
+        <div class="insight-actions"><button @click="$router.push('/info-sources')">管理采集源</button><button class="primary" @click="$router.push('/analysis')">运行智能分析</button></div>
       </div>
     </section>
   </div>
