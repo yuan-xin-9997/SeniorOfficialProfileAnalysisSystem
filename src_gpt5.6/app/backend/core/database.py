@@ -42,17 +42,18 @@ def init_db() -> None:
 
 
 def _migrate_officials_party_role() -> None:
-    """旧库增量升级：officials 表缺少 party_role 列时补列，并按标签回填历史数据。"""
+    """旧库增量升级：补 party_role 列（如缺失），并把空值行按标签回填党内职务。"""
     from ..models.official import Official, derive_party_role
 
     with engine.connect() as conn:
         columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(officials)")}
         if not columns or "party_role" in columns:
-            return
-        conn.exec_driver_sql(
-            "ALTER TABLE officials ADD COLUMN party_role VARCHAR(32) NOT NULL DEFAULT ''"
-        )
-        conn.commit()
+            pass
+        else:
+            conn.exec_driver_sql(
+                "ALTER TABLE officials ADD COLUMN party_role VARCHAR(32) NOT NULL DEFAULT ''"
+            )
+            conn.commit()
 
     db = SessionLocal()
     try:

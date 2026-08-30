@@ -11,10 +11,14 @@ from ..core.timeutil import utcnow
 
 
 def derive_party_role(tags: list[str] | None) -> str:
-    """按标签推导党内职务层级；政治局常委/委员名单由种子数据管线显式给出。"""
+    """按标签推导党内职务层级，取最高职务；常委会、政治局名单亦可靠标签识别。"""
     joined = "、".join(tags or [])
     if "中央候补委员" in joined:
         return "中央候补委员"
+    if "政治局常委" in joined:
+        return "中央政治局常委"
+    if "政治局委员" in joined:
+        return "中央政治局委员"
     if "中央委员" in joined:
         return "中央委员"
     return ""

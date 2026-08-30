@@ -67,6 +67,39 @@ def test_party_role_migration_backfills_from_tags(client):
     assert _party_roles_by_name() == {"张三": "中央委员", "李四": ""}
 
 
+def test_party_role_backfill_runs_on_every_startup_and_never_overwrites(client):
+    """空值行每次启动都会按标签回填；非空值永不被覆盖。"""
+    from app.backend.models.official import Official
+
+    _create_legacy_officials_table()
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "INSERT INTO officials (name, status, tags, created_at, updated_at) "
+            "VALUES ('王五', '在任', ?, '2024-01-01 00:00:00', '2024-01-01 00:00:00')",
+            (json.dumps(["中共二十届中央政治局委员"], ensure_ascii=False),),
+        )
+    _migrate_officials_party_role()
+    assert _party_roles_by_name() == {"张三": "中央委员", "李四": "", "王五": "中央政治局委员"}
+
+    db = SessionLocal()
+    try:
+        db.query(Official).filter_by(name="张三").update({"party_role": "自定义"})
+        db.commit()
+    finally:
+        db.close()
+    _migrate_officials_party_role()
+    assert _party_roles_by_name()["张三"] == "自定义"
+
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "INSERT INTO officials (name, status, tags, created_at, updated_at) "
+            "VALUES ('赵六', '在任', ?, '2024-01-01 00:00:00', '2024-01-01 00:00:00')",
+            (json.dumps(["中共二十届中央候补委员"], ensure_ascii=False),),
+        )
+    _migrate_officials_party_role()
+    assert _party_roles_by_name()["赵六"] == "中央候补委员"
+
+
 def test_party_role_migration_is_idempotent(client):
     _create_legacy_officials_table()
     _migrate_officials_party_role()

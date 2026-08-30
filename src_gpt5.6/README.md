@@ -79,7 +79,7 @@ cd app/frontend && npm run build
 python scripts/import_officials.py --base-url http://127.0.0.1:33380 --username admin --password admin123
 ```
 
-支持 `--dry-run` 预演与 `--update` 覆盖同名记录。数据溯源与再生成脚本见仓库根 `scripts/ccdata/`。旧库升级时启动过程自动为 `officials` 表补 `party_role` 列并按标签回填；已导入过种子数据的实例请加 `--update` 重新导入一次，以补齐政治局常委/委员维度。
+支持 `--dry-run` 预演与 `--update` 覆盖同名记录。数据溯源与再生成脚本见仓库根 `scripts/ccdata/`。旧库升级时启动过程自动为 `officials` 表补 `party_role` 列，并对空值行按标签回填党内职务；注意 `--update` 会用种子数据整体覆盖同名记录，含手工修改的实例请先备份。
 
 ## Jenkins 与 systemd
 
