@@ -10,13 +10,16 @@ from sqlalchemy.orm import Session, selectinload
 from ..core.database import get_db
 from ..core.deps import require_page
 from ..models.official import Career, Official, OfficialRelation
+from ..models.task import TaskRun
 from ..models.user import User
 from ..schemas.official import (
     DashboardStats, OfficialBrief, OfficialCreate, OfficialDetail, OfficialPage, OfficialUpdate,
     RelationAnalysisRequest, RelationAnalysisResult, RelationCreate, RelationOut,
-    TimelineRequest, TimelineResult,
+    ResumeRefreshRequest, ResumeRefreshResult, TimelineRequest, TimelineResult,
 )
 from ..services.analysis.llm_client import LLMClient, LLMError
+from ..services.official.refresh import run_resume_refresh
+from ..services import worker
 
 router = APIRouter(prefix="/api/officials", tags=["高级官员履历"])
 access = require_page("officials")
@@ -62,6 +65,31 @@ def list_officials(
     total = query.count()
     items = query.order_by(Official.updated_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     return OfficialPage(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.post("/resume-refresh", response_model=ResumeRefreshResult)
+def start_resume_refresh(
+    payload: ResumeRefreshRequest | None = None,
+    _: User = Depends(access),
+    db: Session = Depends(get_db),
+):
+    """创建后台履历刷新任务：增量抓取全部官员的来源页面并更新履历档案。"""
+    mode = (payload.mode if payload else "incremental") or "incremental"
+    if mode not in ("incremental", "full"):
+        raise HTTPException(400, f"不支持的刷新模式：{mode}")
+    running = (
+        db.query(TaskRun)
+        .filter(TaskRun.kind == "resume_refresh", TaskRun.status.in_(("pending", "running")))
+        .first()
+    )
+    if running:
+        raise HTTPException(409, f"已有履历刷新任务正在运行（#{running.id}），请等它结束后再试")
+    run = TaskRun(kind="resume_refresh", ref_name="全体官员履历刷新", mode=mode, status="pending")
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    worker.submit(run_resume_refresh, run.id, mode)
+    return ResumeRefreshResult(run_id=run.id, status=run.status)
 
 
 @router.get("/dashboard", response_model=DashboardStats)

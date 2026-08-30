@@ -97,6 +97,13 @@ class Settings:
             _env("SOPAS_WORKER_MAX_WORKERS", wk.get("max_workers", 4))
         )
 
+        # 版本号：Jenkins 构建时把 GitHub 提交编号写入 config/version.txt；
+        # 本地开发或缺失该文件时回退到默认值。
+        version_file = PROJECT_ROOT / "config" / "version.txt"
+        self.app_version: str = (
+            version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "0.1.0"
+        ) or "0.1.0"
+
     @property
     def raw(self) -> dict[str, Any]:
         """The raw parsed ``app.json`` dict (for the system-config page)."""

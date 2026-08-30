@@ -7,7 +7,9 @@ import tempfile
 
 def test_full_flow(client, admin_headers, sync_worker, mock_llm):
     # health
-    assert client.get("/api/health").json() == {"status": "ok"}
+    health = client.get("/api/health").json()
+    assert health["status"] == "ok"
+    assert "version" in health
 
     # wrong password rejected
     r = client.post(

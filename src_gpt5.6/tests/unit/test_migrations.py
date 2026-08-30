@@ -8,6 +8,7 @@ from app.backend.core.database import (
     Base,
     SessionLocal,
     _migrate_officials_party_role,
+    _migrate_officials_resume_refresh,
     engine,
 )
 
@@ -54,6 +55,9 @@ def _create_legacy_officials_table() -> None:
 def _party_roles_by_name() -> dict[str, str]:
     from app.backend.models.official import Official
 
+    # 真实启动时 init_db 会依次执行全部迁移；这里先补齐履历刷新列，
+    # 使旧表结构与当前 ORM 模型一致后再做 ORM 查询。
+    _migrate_officials_resume_refresh()
     db = SessionLocal()
     try:
         return {row.name: row.party_role for row in db.query(Official).all()}
@@ -63,6 +67,7 @@ def _party_roles_by_name() -> dict[str, str]:
 
 def test_party_role_migration_backfills_from_tags(client):
     _create_legacy_officials_table()
+    _migrate_officials_resume_refresh()  # 模拟 init_db 先补列的启动顺序
     _migrate_officials_party_role()
     assert _party_roles_by_name() == {"张三": "中央委员", "李四": ""}
 
@@ -72,6 +77,7 @@ def test_party_role_backfill_runs_on_every_startup_and_never_overwrites(client):
     from app.backend.models.official import Official
 
     _create_legacy_officials_table()
+    _migrate_officials_resume_refresh()  # 模拟 init_db 先补列的启动顺序
     with engine.begin() as conn:
         conn.exec_driver_sql(
             "INSERT INTO officials (name, status, tags, created_at, updated_at) "
@@ -102,6 +108,27 @@ def test_party_role_backfill_runs_on_every_startup_and_never_overwrites(client):
 
 def test_party_role_migration_is_idempotent(client):
     _create_legacy_officials_table()
+    _migrate_officials_resume_refresh()  # 模拟 init_db 先补列的启动顺序
     _migrate_officials_party_role()
     _migrate_officials_party_role()
     assert _party_roles_by_name() == {"张三": "中央委员", "李四": ""}
+
+
+def test_resume_refresh_columns_migration(client):
+    """旧库缺少履历刷新跟踪列时自动补列，且迁移幂等、数据保留。"""
+    _create_legacy_officials_table()
+
+    def columns() -> set[str]:
+        with engine.connect() as conn:
+            return {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(officials)")}
+
+    assert "resume_hash" not in columns()
+    _migrate_officials_resume_refresh()
+    after = columns()
+    assert {"resume_hash", "resume_refreshed_at"} <= after
+
+    # 幂等：重复执行不报错；旧数据仍在。
+    _migrate_officials_resume_refresh()
+    with engine.connect() as conn:
+        count = conn.exec_driver_sql("SELECT COUNT(*) FROM officials").scalar()
+    assert count == 2

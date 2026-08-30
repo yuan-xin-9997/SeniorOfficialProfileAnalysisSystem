@@ -2,7 +2,7 @@
   <div>
     <div class="toolbar search-toolbar">
       <div class="search-box"><span>⌕</span><input v-model="keyword" placeholder="搜索姓名、职务或机构" @keyup.enter="search" /></div>
-      <div class="button-row"><button @click="search">查询</button><button class="primary" @click="openCreate">＋ 新建履历</button></div>
+      <div class="button-row"><button :disabled="refreshing" @click="onRefreshResumes">⟳ 履历刷新</button><button @click="search">查询</button><button class="primary" @click="openCreate">＋ 新建履历</button></div>
     </div>
 
     <div class="filter-row">
@@ -67,9 +67,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { showToast } from '@/composables/toast'
-import { createOfficialApi, deleteOfficialApi, getOfficialApi, listOfficialsApi, updateOfficialApi, type Career, type Official } from '@/api/officials'
+import { createOfficialApi, deleteOfficialApi, getOfficialApi, listOfficialsApi, refreshResumesApi, updateOfficialApi, type Career, type Official } from '@/api/officials'
 
 const officials = ref<Official[]>([]); const total = ref(0); const keyword = ref(''); const statusFilter = ref(''); const partyRoleFilter = ref('')
+const refreshing = ref(false)
 const page = ref(1); const pageSize = 20; const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const statusOptions = ['在任', '离任', '退休', '落马', '已故']; const statuses = ['', ...statusOptions]; const partyRoles = ['', '中央政治局常委', '中央政治局委员', '中央委员', '中央候补委员']
 const STATUS_PILL_CLASS: Record<string, string> = { 在任: 'ok', 落马: 'error' }
@@ -95,5 +96,17 @@ function openCreate() { resetForm(); editorOpen.value = true }
 function openEdit(o: Official) { Object.assign(form, JSON.parse(JSON.stringify(o))); form.birth_date ||= ''; form.careers ||= []; tagText.value = o.tags.join(', '); detail.value = null; editorOpen.value = true }
 function addCareer() { form.careers.push(emptyCareer()) }
 async function save() { const payload = { ...form, birth_date: form.birth_date || null, tags: tagText.value.split(/[,，]/).map((v) => v.trim()).filter(Boolean) }; if (form.id) await updateOfficialApi(form.id, payload); else await createOfficialApi(payload); editorOpen.value = false; showToast('履历已保存'); await load() }
+async function onRefreshResumes() {
+  if (!confirm('将对履历档案中的全部官员执行增量履历抓取（来源页面内容未变化的自动跳过），任务在后台运行，可在任务中心查看进度。继续？')) return
+  refreshing.value = true
+  try {
+    const { run_id } = await refreshResumesApi()
+    showToast(`履历刷新任务已提交（运行 ID: ${run_id}），可在任务中心查看进度`)
+  } catch {
+    // 吐司由 axios 拦截器统一处理
+  } finally {
+    refreshing.value = false
+  }
+}
 async function remove(o: Official) { if (!confirm(`确认删除「${o.name}」的履历？`)) return; await deleteOfficialApi(o.id); detail.value = null; showToast('履历已删除'); await load() }
 </script>

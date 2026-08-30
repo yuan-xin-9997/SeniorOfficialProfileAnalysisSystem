@@ -97,6 +97,17 @@ class TimelineRequest(ORMBase):
     official_ids: list[int] = Field(min_length=1, max_length=20)
 
 
+class ResumeRefreshRequest(ORMBase):
+    """履历刷新任务入参；incremental 按内容哈希跳过未变化的来源页面。"""
+
+    mode: str = "incremental"
+
+
+class ResumeRefreshResult(ORMBase):
+    run_id: int
+    status: str
+
+
 class TimelineOfficial(ORMBase):
     id: int
     name: str

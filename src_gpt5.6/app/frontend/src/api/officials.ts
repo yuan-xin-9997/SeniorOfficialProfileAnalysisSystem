@@ -48,6 +48,10 @@ export interface RelationAnalysis {
   relation_type: string; summary: string; evidence: string[]; confidence: string
 }
 export interface TimelineResult { officials: Official[] }
+export interface ResumeRefreshResult { run_id: number; status: string }
+
+export const refreshResumesApi = (data: { mode?: 'incremental' | 'full' } = {}) =>
+  request.post<unknown, ResumeRefreshResult>('/api/officials/resume-refresh', data)
 
 export const listOfficialsApi = (params: Record<string, unknown> = {}) => request.get<unknown, OfficialPage>('/api/officials', { params })
 export const getOfficialApi = (id: number) => request.get<unknown, Official>(`/api/officials/${id}`)

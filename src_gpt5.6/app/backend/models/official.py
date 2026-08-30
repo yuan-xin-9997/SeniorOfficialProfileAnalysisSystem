@@ -42,6 +42,9 @@ class Official(Base):
     summary: Mapped[str] = mapped_column(Text, default="")
     photo_url: Mapped[str] = mapped_column(String(1024), default="")
     source_url: Mapped[str] = mapped_column(String(1024), default="")
+    # 履历刷新跟踪：上次抓取内容哈希（增量去重）与上次刷新时间。
+    resume_hash: Mapped[str] = mapped_column(String(64), default="")
+    resume_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

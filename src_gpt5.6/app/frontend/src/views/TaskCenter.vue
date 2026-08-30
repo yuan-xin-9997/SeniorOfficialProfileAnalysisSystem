@@ -6,6 +6,7 @@
           <option :value="undefined">全部类型</option>
           <option value="analysis">分析</option>
           <option value="sync">同步</option>
+          <option value="resume_refresh">履历刷新</option>
         </select>
         <select v-model="statusFilter" @change="load" style="width:auto">
           <option :value="undefined">全部状态</option>
@@ -75,7 +76,7 @@ async function load() {
 }
 
 function kindLabel(k: string) {
-  return k === 'analysis' ? '分析' : k === 'sync' ? '同步' : k
+  return k === 'analysis' ? '分析' : k === 'sync' ? '同步' : k === 'resume_refresh' ? '履历刷新' : k
 }
 function logLevelDot(level: string) {
   if (level === 'ERROR') return 'failed'

@@ -85,6 +85,8 @@ pipeline {
             steps {
                 sh '''
                     set -e
+                    # 版本号 = GitHub 提交编号，随代码一起 rsync 到部署目录供运行时读取。
+                    git rev-list --count HEAD > src_gpt5.6/config/version.txt
                     rsync -a --delete \
                       --exclude data --exclude logs --exclude .venv --exclude .ci-venv \
                       --exclude .pytest_cache --exclude __pycache__ --exclude node_modules \

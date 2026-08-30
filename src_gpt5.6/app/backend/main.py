@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
     logger.info("高级官员履历分析系统已停止")
 
 
-app = FastAPI(title="高级官员履历分析系统", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="高级官员履历分析系统", version=settings.app_version, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -71,7 +71,7 @@ app.include_router(analysis_tasks_api.results_router)
 @app.get("/api/health")
 def health() -> dict[str, str]:
     """Health check (used by start/status scripts and monitoring)."""
-    return {"status": "ok"}
+    return {"status": "ok", "version": settings.app_version}
 
 
 # Serve the built frontend (SPA) when present. The frontend ``dist`` is produced

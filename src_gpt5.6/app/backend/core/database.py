@@ -38,6 +38,9 @@ def init_db() -> None:
     from .. import models  # noqa: F401  (registers ORM models)
 
     Base.metadata.create_all(bind=engine)
+    # 注意顺序：先补列（纯 DDL）再跑带 ORM 查询的回填迁移，
+    # 否则旧库上 ORM 查询会因缺少新列而报错。
+    _migrate_officials_resume_refresh()
     _migrate_officials_party_role()
     _migrate_page_key_aliases()
 
@@ -73,6 +76,23 @@ def _migrate_officials_party_role() -> None:
             db.commit()
     finally:
         db.close()
+
+
+def _migrate_officials_resume_refresh() -> None:
+    """旧库增量升级：补履历刷新跟踪列 resume_hash / resume_refreshed_at（如缺失）。"""
+    with engine.connect() as conn:
+        columns = _table_columns(conn, "officials")
+        if not columns:
+            return
+        if "resume_hash" not in columns:
+            conn.exec_driver_sql(
+                "ALTER TABLE officials ADD COLUMN resume_hash VARCHAR(64) NOT NULL DEFAULT ''"
+            )
+        if "resume_refreshed_at" not in columns:
+            conn.exec_driver_sql(
+                "ALTER TABLE officials ADD COLUMN resume_refreshed_at DATETIME NULL"
+            )
+        conn.commit()
 
 
 def _migrate_page_key_aliases() -> None:

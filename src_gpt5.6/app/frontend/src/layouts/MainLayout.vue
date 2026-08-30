@@ -19,7 +19,7 @@
         <div class="avatar">{{ (auth.user?.username || '?').slice(0, 1).toUpperCase() }}</div>
         <div>
           <strong>{{ auth.user?.username }}</strong>
-          <small>{{ auth.isAdmin ? '管理员' : '普通用户' }}</small>
+          <small>{{ auth.isAdmin ? '管理员' : '普通用户' }} · v{{ appVersion }}</small>
         </div>
         <button title="退出" @click="onLogout">↗</button>
       </div>
@@ -53,6 +53,7 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const serviceOk = ref(true)
+const appVersion = ref('…')
 
 const allMenus = [
   { path: '/dashboard', page: 'dashboard', icon: '概', title: '概览' },
@@ -73,7 +74,7 @@ const pageMeta: Record<string, [string, string]> = {
   relations: ['关系图谱', '发现人物之间的同事、上下级与地域关系'],
   info_sources: ['信息源管理', '管理履历采集所需的官方网站、本地文件夹与 FreshRSS'],
   analysis: ['智能分析', '绑定信息源触发智能分析，并查看逐条与汇总结果'],
-  task_center: ['任务中心', '查看同步与分析任务运行状态及日志'],
+  task_center: ['任务中心', '查看采集、分析与履历刷新任务的运行状态及日志'],
   permission: ['权限管理', '维护用户角色与可访问页面'],
   system_config: ['系统配置', '查看运行配置（敏感字段已脱敏）'],
 }
@@ -96,8 +97,9 @@ function onLogout() {
 
 onMounted(async () => {
   try {
-    await request.get('/api/health')
-    serviceOk.value = true
+    const health = await request.get<unknown, { status: string; version?: string }>('/api/health')
+    serviceOk.value = health?.status === 'ok'
+    if (health?.version) appVersion.value = health.version
   } catch {
     serviceOk.value = false
   }
