@@ -49,6 +49,7 @@ ROLE_WORDS = (
     "社长", "总编辑", "总监", "理事长", "副会长", "副主席", "副部长", "副省长",
     "副市长", "副总经理", "副主任", "董事长", "馆长", "台长", "总会计师", "总经济师",
     "总工程师", "董事长", "秘书长", "审判长", "检察长", "局长", "队长", "科长",
+    "组长", "委员", "常委", "处长", "司长", "厅长", "州长", "专员", "审计长", "参事",
 )
 
 
@@ -70,16 +71,38 @@ def derive_organization(pos: str) -> str:
 
 
 def current_from_roster(lines: list[str]) -> tuple[str, str]:
-    """Return (current_position, '') from the last roster line."""
+    """Return (current_position, '') from the last roster line.
+
+    名单页的行往往不带日期（如“中央政治局常委、中央书记处书记”），
+    这些正是干净的现任职务，必须以 allow_undated=True 解析。
+    """
     if not lines:
         return "", ""
     for line in reversed(lines):
-        seg = parse_roster_line(line)
+        seg = parse_roster_line(line, allow_undated=True)
         if seg and seg["position"]:
-            text = seg["position"]
             # if the segment has an explicit end date, it is the last held post
-            return text, ""
+            return seg["position"], ""
     return "", ""
+
+
+# 新闻叙事特征：命中即不是“现任职务”而是事件报道句。
+NEWS_PATTERN = re.compile(
+    r"率领|抵达|出席|会见|陪同|代表团|庆祝大会|骨灰|撒入|主持召开|考察|调研|慰问|发表|讲话"
+    r"|的提法|这段时间|也不是|开始使用|罕见|陪护|当选|写入|爆炸|事故|排放比|减税|增资"
+    r"|卸任|接任|履新|辞去|被免|免职|接受纪律审查|监察调查"
+)
+
+
+def looks_like_position(text: str) -> bool:
+    """现任职务质量门控：短小、含职务词、不含新闻叙事特征。"""
+    if not text:
+        return False
+    if len(text) > 60:
+        return False
+    if NEWS_PATTERN.search(text):
+        return False
+    return any(w in text for w in ROLE_WORDS)
 
 
 def parse_roster_line(line: str, allow_undated: bool = False) -> dict | None:
@@ -149,6 +172,8 @@ def build_record(p: dict, is_member: bool, promoted: bool) -> dict:
         tags.append("落马")
 
     current_position, _ = current_from_roster(p.get("roster_positions", []))
+    if not looks_like_position(current_position):
+        current_position = ""
 
     membership = "委员" if is_member else "候补委员"
     if promoted and not is_member:
@@ -231,8 +256,16 @@ def build_record(p: dict, is_member: bool, promoted: bool) -> dict:
         if not s["end_date"]:
             s["end_date"] = careers[i + 1]["start_date"] if i + 1 < len(careers) else "至今"
 
+    # 现任职务兜底：从最新履历往回找第一条“像职务”的记录，
+    # 宁可留空也不把新闻叙事句碎片当成现任职务。
+    if not current_position:
+        for seg in reversed(careers):
+            if looks_like_position(seg["position"]):
+                current_position = seg["position"][:255]
+                break
+
     if not current_position and careers:
-        current_position = careers[-1]["position"][:255]
+        current_position = ""
         suffix = f"，{verb}{current_position}" if current_position else ""
         summary = f"中共二十届中央{membership}{suffix}。"
 
