@@ -116,6 +116,18 @@ def test_party_role_filter_is_hierarchical(client, admin_headers):
     assert unsupported.status_code == 400
 
 
+def test_status_filter_supports_fallen(client, admin_headers):
+    for name, status_value in (("落马甲", "落马"), ("在任甲", "在任")):
+        payload = _profile(name)
+        payload["status"] = status_value
+        created = client.post("/api/officials", json=payload, headers=admin_headers)
+        assert created.status_code == 201, created.text
+
+    rows = client.get("/api/officials", params={"status": "落马"}, headers=admin_headers).json()
+    assert {item["name"] for item in rows["items"]} == {"落马甲"}
+    assert rows["items"][0]["status"] == "落马"
+
+
 def test_timeline_loads_selected_profiles_in_order(client, admin_headers):
     first = client.post("/api/officials", json=_profile("时间线甲"), headers=admin_headers).json()
     second = client.post("/api/officials", json=_profile("时间线乙"), headers=admin_headers).json()
