@@ -50,6 +50,8 @@ npm run dev
 npm run build
 ```
 
+浏览器 TAB 图标（favicon）位于 `app/frontend/public/`（`favicon.svg`、`favicon.png`、`favicon.ico`、`apple-touch-icon.png`），由 `index.html` 引用，构建时随 `dist` 一起发布；修改图标后需重新执行 `npm run build`。
+
 ## 测试
 
 ```bash

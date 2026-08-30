@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Favicon mirrors the in-app brand mark: rounded #5776e8 square with a white 履 -->
+  <rect width="64" height="64" rx="19" fill="#5776e8"/>
+  <text x="32" y="33.5" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="30" font-weight="600" fill="#ffffff" text-anchor="middle" dominant-baseline="central">履</text>
+</svg>
