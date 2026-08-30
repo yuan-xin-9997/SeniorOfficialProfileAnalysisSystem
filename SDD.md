@@ -41,6 +41,7 @@ API 以 `/api` 为前缀，认证使用 Bearer Token。页面级接口通过 `re
 - `info_sources`、`info_items`：信息源和采集内容。
 - `analysis_tasks`、`task_sources`、`analysis_results`：分析定义、来源绑定和结果。
 - `task_runs`、`task_logs`：后台运行审计。
+- 内置种子数据：`data/seed/officials_20th_cc.json` 存放二十届中央委员/候补委员履历（与 `OfficialCreate` 结构一致），由 `scripts/import_officials.py` 按姓名幂等导入；采集与解析脚本（维基名单/条目抓取、简历抽取、种子生成）保留在仓库根 `scripts/ccdata/` 以便追溯与再生成。
 
 数据时间保存为 UTC naive datetime，Pydantic 输出时转换为 `Asia/Shanghai`。SQLite 连接打开 `PRAGMA foreign_keys=ON`。
 

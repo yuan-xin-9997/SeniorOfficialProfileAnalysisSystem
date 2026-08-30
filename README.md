@@ -84,6 +84,10 @@ src_gpt5.6/
 └── stop.ps1|stop.sh
 ```
 
+## 内置履历数据
+
+系统内置中国共产党第二十届中央委员会委员（含递补 219 人）与候补委员（157 人）共 376 人的履历种子数据 `src_gpt5.6/data/seed/officials_20th_cc.json`（含逐段任职经历与委员/候补、递补、党和国家领导人、落马、已故、院士等标签），并随附导入脚本 `src_gpt5.6/scripts/import_officials.py`（支持 `--dry-run` 预演、`--update` 覆盖、按姓名幂等跳过已有记录）。数据采集、解析与再生成脚本见 `scripts/ccdata/`。
+
 ## 相关文档
 
 - [需求规格说明书](SRS.md)

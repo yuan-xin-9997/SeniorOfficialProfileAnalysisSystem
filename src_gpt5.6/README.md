@@ -71,6 +71,16 @@ cd app/frontend && npm run build
 - 权限管理：管理员配置普通用户页面访问范围。
 - 系统配置：脱敏显示运行配置。
 
+## 内置履历数据与导入
+
+系统内置中共二十届中央委员（含递补）与中央候补委员共 376 人的种子数据 `data/seed/officials_20th_cc.json`。向运行中的实例导入（默认跳过同名已有履历）：
+
+```bash
+python scripts/import_officials.py --base-url http://127.0.0.1:33380 --username admin --password admin123
+```
+
+支持 `--dry-run` 预演与 `--update` 覆盖同名记录。数据溯源与再生成脚本见仓库根 `scripts/ccdata/`。
+
 ## Jenkins 与 systemd
 
 - Jenkins 脚本路径：`src_gpt5.6/JenkinsConfig/Jenkinsfile`
