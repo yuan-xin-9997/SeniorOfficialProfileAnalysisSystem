@@ -1,18 +1,16 @@
 """Resume refresh job (runs in the background worker).
 
 For every official with a ``source_url`` the job fetches the page through the
-centralized WebFetch service, extracts the resume with the configured LLM and
-replaces the official's career rows. Officials whose page text is unchanged
-(same sha256) are skipped in ``incremental`` mode, so repeated runs only do
-work for pages that actually changed.
+centralized WebFetch service and extracts the resume with a dedicated parser
+(no LLM involved): zh.wikipedia.org pages go through the Wikipedia DOM parser,
+everything else through the generic Chinese official-resume line parser.
+Officials whose page text is unchanged (same sha256) are skipped in
+``incremental`` mode, so repeated runs only do work for pages that changed.
 """
 from __future__ import annotations
 
 import hashlib
-import json
 
-from bs4 import BeautifulSoup
-from pydantic import ValidationError
 from sqlalchemy.orm import selectinload
 
 from ...core.database import SessionLocal
@@ -21,30 +19,13 @@ from ...core.timeutil import utcnow
 from ...models.official import Career, Official
 from ...models.task import TaskLog, TaskRun
 from ...schemas.official import CareerData
-from ..analysis.llm_client import LLMClient, LLMError
 from ..info_source.webfetch_client import WebFetchClient, WebFetchError
+from .resume_parsers import is_wikipedia_url, parse_resume, parser_label_for
 
 _logger = get_logger("resume_refresh")
 
-# 送入 LLM 前的最大页面文本长度，避免超出上下文与无谓的 token 消耗。
+# 哈希基准文本的最大长度，避免超长页面拖慢增量比对。
 MAX_PAGE_CHARS = 12000
-
-_SYSTEM_PROMPT = (
-    "你是严谨的中文人物履历数据抽取助手。只依据给定网页文本抽取该人物的任职经历，"
-    "不得虚构文本中没有的事实。只返回 JSON 对象，不要使用 Markdown。"
-)
-
-
-def _user_prompt(name: str, page_text: str) -> str:
-    return (
-        f"从下面的网页文本中抽取「{name}」的任职经历（履历），按时间从早到晚排序，"
-        '返回 JSON：{"careers": [{"start_date": "YYYY.MM 或空字符串", '
-        '"end_date": "YYYY.MM 或 至今", "organization": "机构或空字符串", '
-        '"position": "职务", "location": "地点或空字符串", '
-        '"administrative_rank": "行政级别或空字符串", "description": "一句话说明或空字符串"}]}。'
-        "日期尽量用 YYYY.MM 格式；在任的写「至今」。只抽取该人物本人的经历。\n\n"
-        f"网页文本：\n{page_text}"
-    )
 
 
 def _log(db, run_id: int, level: str, message: str) -> None:
@@ -57,21 +38,13 @@ def _content_hash(text: str) -> str:
 
 
 def _html_to_text(html: str) -> str:
-    """把抓取到的 HTML 归一化为纯文本（供哈希比较与 LLM 抽取）。"""
+    """把抓取到的 HTML 归一化为纯文本（仅作增量哈希基准）。"""
+    from bs4 import BeautifulSoup
+
     soup = BeautifulSoup(html or "", "html.parser")
     lines = [line.strip() for line in soup.get_text(separator="\n").splitlines()]
     text = "\n".join(line for line in lines if line)
     return text[:MAX_PAGE_CHARS]
-
-
-def _parse_llm_json(raw: str) -> dict:
-    raw = (raw or "").strip()
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-    data = json.loads(raw)
-    if not isinstance(data, dict):
-        raise ValueError("模型返回的不是 JSON 对象")
-    return data
 
 
 def _apply_careers(db, official: Official, careers: list[CareerData]) -> None:
@@ -83,23 +56,23 @@ def _apply_careers(db, official: Official, careers: list[CareerData]) -> None:
     official.resume_refreshed_at = utcnow()
 
 
-def _refresh_one(client: WebFetchClient, llm: LLMClient, db, official: Official, mode: str) -> tuple[str, int]:
+def _refresh_one(client: WebFetchClient, db, official: Official, mode: str) -> tuple[str, int]:
     """刷新单个官员。返回 (动作, 条目数)，动作取值 updated | skipped。"""
-    html = client.fetch_html(official.source_url)
+    url = official.source_url
+    # 维基百科域名在国内被 DNS 污染，需经集中抓取服务的代理策略出网。
+    html = client.fetch_html(url, proxy_policy="proxy" if is_wikipedia_url(url) else None)
     text = _html_to_text(html)
     digest = _content_hash(text)
     if mode == "incremental" and official.resume_hash == digest:
         return "skipped", 0
 
-    raw = llm.chat(_SYSTEM_PROMPT, _user_prompt(official.name, text))
-    data = _parse_llm_json(raw)
-    items = data.get("careers") or []
-    if not isinstance(items, list) or not items:
-        raise ValueError("模型未解析出任何履历条目")
+    items = parse_resume(html, url, official.name)
+    if not items:
+        raise ValueError(f"{parser_label_for(url)}未能从页面解析出任何履历条目")
     try:
         careers = [CareerData.model_validate(item) for item in items]
-    except ValidationError as exc:
-        raise ValueError(f"模型返回的履历条目格式无效: {exc}") from exc
+    except Exception as exc:  # noqa: BLE001  解析器字段异常按单官员失败处理
+        raise ValueError(f"解析结果字段无效: {exc}") from exc
 
     _apply_careers(db, official, careers)
     official.resume_hash = digest
@@ -116,12 +89,9 @@ def run_resume_refresh(run_id: int, mode: str = "incremental") -> None:
         run.status = "running"
         run.started_at = utcnow()
         db.commit()
-        _log(db, run_id, "INFO", f"开始履历刷新（模式: {mode}），正在准备抓取与解析服务…")
-
         try:
             client = WebFetchClient()
-            llm = LLMClient()
-        except (WebFetchError, LLMError) as exc:
+        except WebFetchError as exc:
             run.status = "failed"
             run.error = str(exc)
             run.finished_at = utcnow()
@@ -137,7 +107,7 @@ def run_resume_refresh(run_id: int, mode: str = "incremental") -> None:
                 .all()
             )
             total = len(officials)
-            _log(db, run_id, "INFO", f"共 {total} 位官员待刷新")
+            _log(db, run_id, "INFO", f"共 {total} 位官员待刷新（专用解析器，不调用 LLM）")
 
             updated = skipped = failed = no_source = 0
             for official in officials:
@@ -148,13 +118,13 @@ def run_resume_refresh(run_id: int, mode: str = "incremental") -> None:
                     _log(db, run_id, "WARNING", f"{name}: 未配置来源链接（source_url），跳过")
                     continue
                 try:
-                    action, count = _refresh_one(client, llm, db, official, mode)
+                    action, count = _refresh_one(client, db, official, mode)
                     if action == "skipped":
                         skipped += 1
                         _log(db, run_id, "INFO", f"{name}: 来源页面内容未变化，跳过")
                     else:
                         updated += 1
-                        _log(db, run_id, "INFO", f"{name}: 已更新 {count} 条任职经历")
+                        _log(db, run_id, "INFO", f"{name}: {parser_label_for(official.source_url)}已更新 {count} 条任职经历")
                     db.commit()
                 except Exception as exc:  # noqa: BLE001  单人失败不阻断整体
                     db.rollback()
@@ -169,7 +139,7 @@ def run_resume_refresh(run_id: int, mode: str = "incremental") -> None:
             run.finished_at = utcnow()
             if total and updated == 0 and skipped == 0 and failed == total:
                 run.status = "failed"
-                run.error = f"全部 {total} 位官员刷新失败，请检查抓取服务与 LLM 配置"
+                run.error = f"全部 {total} 位官员刷新失败，请检查抓取服务与来源页面可达性"
                 _log(db, run_id, "ERROR", run.error)
             else:
                 run.status = "succeeded"

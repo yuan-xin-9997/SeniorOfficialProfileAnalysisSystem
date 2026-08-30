@@ -46,9 +46,16 @@ class WebFetchClient:
             "Content-Type": "application/json",
         }
 
-    def fetch(self, url: str, mode: str = "auto", save_artifact: bool = True) -> dict[str, Any]:
-        """POST /v1/fetch and return the parsed JSON response."""
-        payload = {"url": url, "mode": mode, "save_artifact": save_artifact}
+    def fetch(self, url: str, mode: str = "auto", save_artifact: bool = True,
+              proxy_policy: str | None = None) -> dict[str, Any]:
+        """POST /v1/fetch and return the parsed JSON response.
+
+        ``proxy_policy`` 为 "proxy" 时请求经服务的出网代理（用于 DNS 被污染、
+        直连不可达的目标，如 zh.wikipedia.org）；None 使用服务端默认策略。
+        """
+        payload: dict[str, Any] = {"url": url, "mode": mode, "save_artifact": save_artifact}
+        if proxy_policy:
+            payload["proxy_policy"] = proxy_policy
         try:
             r = httpx.post(
                 f"{self.base_url}/v1/fetch",
@@ -75,9 +82,9 @@ class WebFetchClient:
             raise WebFetchError(f"artifact 返回 {r.status_code}: {r.text[:200]}")
         return r.json()
 
-    def fetch_html(self, url: str, mode: str = "auto") -> str:
+    def fetch_html(self, url: str, mode: str = "auto", proxy_policy: str | None = None) -> str:
         """Fetch a URL and extract its HTML text from the service response."""
-        resp = self.fetch(url, mode=mode, save_artifact=True)
+        resp = self.fetch(url, mode=mode, save_artifact=True, proxy_policy=proxy_policy)
         html = _extract_text(resp)
         if html:
             return html
